@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PocketLedger</title>
+<!-- PWA manifest (inline) -->
+<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22PocketLedger%22%2C%22short_name%22%3A%22PocketLedger%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230a0e17%22%2C%22theme_color%22%3A%22%2300e5a0%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D%2527http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%3D%25270%25200%252024%252024%2527%253E%253Crect%2520fill%3D%2527%25230a0e17%2527%2520width%3D%252724%2527%2520height%3D%252724%2527%252F%253E%253Ctext%2520y%3D%252720%2527%2520font-size%3D%252720%2527%253E%25F0%259F%25A4%259F%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<meta name="theme-color" content="#00e5a0">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ─── DESIGN TOKENS ────────────────────────────────────────────────────── */
@@ -769,15 +772,71 @@ let state = {
   threshold: 200,
 };
 
-function loadState() {
-  try {
-    const s = localStorage.getItem('pocketledger_v1');
-    if (s) state = { ...state, ...JSON.parse(s) };
-  } catch(e) {}
+// ── STORAGE: IndexedDB primary, localStorage backup ──────────────────────
+const DB_NAME = 'pocketledger';
+const DB_STORE = 'state';
+const DB_KEY   = 'v1';
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (db) { resolve(db); return; }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore(DB_STORE);
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror   = e => reject(e.target.error);
+  });
 }
 
-function saveState() {
-  try { localStorage.setItem('pocketledger_v1', JSON.stringify(state)); } catch(e) {}
+async function loadState() {
+  // 1. Try IndexedDB first (most persistent)
+  try {
+    const database = await openDB();
+    const tx   = database.transaction(DB_STORE, 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const saved = await new Promise((res, rej) => {
+      const req = store.get(DB_KEY);
+      req.onsuccess = () => res(req.result);
+      req.onerror   = () => rej(req.error);
+    });
+    if (saved) {
+      state = { ...state, ...saved };
+      // Mirror to localStorage as backup
+      try { localStorage.setItem('pocketledger_v1', JSON.stringify(state)); } catch(_) {}
+      return;
+    }
+  } catch(e) { console.warn('IndexedDB load failed, trying localStorage', e); }
+
+  // 2. Fallback to localStorage
+  try {
+    const s = localStorage.getItem('pocketledger_v1');
+    if (s) {
+      state = { ...state, ...JSON.parse(s) };
+      // Promote to IndexedDB
+      saveState();
+    }
+  } catch(e) { console.warn('localStorage load failed', e); }
+}
+
+async function saveState() {
+  const snapshot = JSON.parse(JSON.stringify(state)); // deep clone
+
+  // 1. Write to IndexedDB
+  try {
+    const database = await openDB();
+    const tx    = database.transaction(DB_STORE, 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    await new Promise((res, rej) => {
+      const req = store.put(snapshot, DB_KEY);
+      req.onsuccess = () => res();
+      req.onerror   = () => rej(req.error);
+    });
+  } catch(e) { console.warn('IndexedDB save failed', e); }
+
+  // 2. Always mirror to localStorage as backup
+  try { localStorage.setItem('pocketledger_v1', JSON.stringify(snapshot)); } catch(_) {}
 }
 
 function todayStr() {
@@ -1433,44 +1492,94 @@ window.matchMedia('(min-width: 768px)').addEventListener('change', () => render(
 // ══════════════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════════════
-loadState();
-// Set today's date on lookup inputs
-document.getElementById('outer-lookup-date').value = todayStr();
-document.getElementById('inner-lookup-date').value = todayStr();
-render();
+// ── BOOT ─────────────────────────────────────────────────────────────────
+async function boot() {
+  await loadState();
 
-// Load demo data on first run
-if (!state.entries.length && state.baseline === 0) {
-  const today = new Date();
-  const fmt = d => d.toISOString().split('T')[0];
+  document.getElementById('outer-lookup-date').value = todayStr();
+  document.getElementById('inner-lookup-date').value = todayStr();
 
-  const nextFriday = new Date(today);
-  nextFriday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7 || 7));
-  const nextMonth1st = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const mid = new Date(today); mid.setDate(15);
-  if (mid <= today) mid.setMonth(mid.getMonth() + 1);
-  const daysOut = n => { const d = new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
-  const nextDayOfMonth = day => { const d = new Date(today); d.setDate(day); if (d <= today) d.setMonth(d.getMonth()+1); return fmt(d); };
+  // Load demo data on very first run
+  if (!state.entries.length && state.baseline === 0) {
+    const today = new Date();
+    const fmt = d => d.toISOString().split('T')[0];
+    const nextFriday = new Date(today);
+    nextFriday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7 || 7));
+    const nextMonth1st = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const mid = new Date(today); mid.setDate(15);
+    if (mid <= today) mid.setMonth(mid.getMonth() + 1);
+    const daysOut = n => { const d = new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
+    const nextDOM  = day => { const d = new Date(today); d.setDate(day); if (d <= today) d.setMonth(d.getMonth()+1); return fmt(d); };
 
-  state.baseline = 2150.00;
-  state.baselineDate = fmt(today);
-  state.threshold = 200;
+    state.baseline     = 2150.00;
+    state.baselineDate = fmt(today);
+    state.threshold    = 200;
+    state.entries = [
+      { id:uuid(), type:'income',  label:'Main Job Paycheck',  amount:2400.00, date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:null,            notes:'After taxes' },
+      { id:uuid(), type:'income',  label:'Freelance Side Work', amount:350.00, date:fmt(mid),           recur:'one-time',  freq:null,       endDate:null, category:null,            notes:null },
+      { id:uuid(), type:'expense', label:'Rent',               amount:1350.00, date:fmt(nextMonth1st), recur:'recurring', freq:'monthly',  endDate:null, category:'Housing',       notes:null },
+      { id:uuid(), type:'expense', label:'Netflix',            amount:17.99,   date:nextDOM(12),        recur:'recurring', freq:'monthly',  endDate:null, category:'Subscriptions', notes:null },
+      { id:uuid(), type:'expense', label:'Spotify',            amount:11.99,   date:nextDOM(8),         recur:'recurring', freq:'monthly',  endDate:null, category:'Subscriptions', notes:null },
+      { id:uuid(), type:'expense', label:'Phone Bill',         amount:85.00,   date:nextDOM(20),        recur:'recurring', freq:'monthly',  endDate:null, category:'Subscriptions', notes:'T-Mobile' },
+      { id:uuid(), type:'expense', label:'Car Insurance',      amount:142.00,  date:nextDOM(5),         recur:'recurring', freq:'monthly',  endDate:null, category:'Transport',     notes:null },
+      { id:uuid(), type:'expense', label:'Gas',                amount:60.00,   date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Transport',     notes:'Estimated' },
+      { id:uuid(), type:'expense', label:'Groceries',          amount:120.00,  date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Food',          notes:'Estimated' },
+      { id:uuid(), type:'expense', label:'Birthday Dinner',    amount:95.00,   date:daysOut(10),        recur:'one-time',  freq:null,       endDate:null, category:'Entertainment', notes:null },
+    ];
+    await saveState();
+  }
 
-  state.entries = [
-    { id:uuid(), type:'income',  label:'Main Job Paycheck',  amount:2400.00, date:fmt(nextFriday),   recur:'recurring', freq:'biweekly',  endDate:null, category:null,             notes:'After taxes' },
-    { id:uuid(), type:'income',  label:'Freelance Side Work', amount:350.00,  date:fmt(mid),          recur:'one-time',  freq:null,        endDate:null, category:null,             notes:null },
-    { id:uuid(), type:'expense', label:'Rent',               amount:1350.00, date:fmt(nextMonth1st), recur:'recurring', freq:'monthly',   endDate:null, category:'Housing',        notes:null },
-    { id:uuid(), type:'expense', label:'Netflix',            amount:17.99,   date:nextDayOfMonth(12),recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:null },
-    { id:uuid(), type:'expense', label:'Spotify',            amount:11.99,   date:nextDayOfMonth(8), recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:null },
-    { id:uuid(), type:'expense', label:'Phone Bill',         amount:85.00,   date:nextDayOfMonth(20),recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:'T-Mobile' },
-    { id:uuid(), type:'expense', label:'Car Insurance',      amount:142.00,  date:nextDayOfMonth(5), recur:'recurring', freq:'monthly',   endDate:null, category:'Transport',      notes:null },
-    { id:uuid(), type:'expense', label:'Gas',                amount:60.00,   date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Transport',      notes:'Estimated' },
-    { id:uuid(), type:'expense', label:'Groceries',          amount:120.00,  date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Food',           notes:'Estimated' },
-    { id:uuid(), type:'expense', label:'Birthday Dinner',    amount:95.00,   date:daysOut(10),        recur:'one-time',  freq:null,        endDate:null, category:'Entertainment',  notes:null },
-  ];
-
-  saveState();
   render();
+}
+
+boot();
+
+// ── SERVICE WORKER registration ────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  // Inline SW as a blob so no separate sw.js file is needed
+  const swCode = `
+const CACHE = 'pocketledger-v1';
+const SELF_URL = self.location.href;
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(cache => cache.add(SELF_URL))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', e => {
+  // Cache-first for the app shell, network-first for everything else
+  if (e.request.url === SELF_URL || e.request.mode === 'navigate') {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const networkFetch = fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        }).catch(() => cached);
+        return cached || networkFetch;
+      })
+    );
+  }
+});
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl, { scope: '/' })
+    .then(() => console.log('PocketLedger SW registered'))
+    .catch(e => console.warn('SW registration failed (expected on file://)', e));
 }
 </script>
 </body>
