@@ -1,7 +1,7 @@
 // PocketLedger Service Worker
 // Hosted at repo root alongside index.html on GitHub Pages
 // Bump this version string whenever you push an update to index.html
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 const CACHE_NAME  = 'pocketledger-shell-' + APP_VERSION;
 
 // Files to pre-cache on install
