@@ -1398,11 +1398,37 @@ function clearAllData() {
 // ══════════════════════════════════════════════════════════════════════════
 // SCREEN RESIZE HANDLING
 // ══════════════════════════════════════════════════════════════════════════
+// Z Fold 7 — multi-method fold/resize detection
 let resizeTimer;
+
+// 1. Standard resize
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => render(), 150);
+  resizeTimer = setTimeout(() => render(), 80);
 });
+
+// 2. Visual Viewport API — more reliable on foldables
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => render(), 80);
+  });
+}
+
+// 3. Device Posture API — native fold state change (Chrome foldables)
+if ('devicePosture' in navigator) {
+  navigator.devicePosture.addEventListener('change', () => {
+    setTimeout(() => render(), 120);
+  });
+}
+
+// 4. Screen Fold API (older Samsung browser spec)
+if ('fold' in screen) {
+  screen.addEventListener('change', () => setTimeout(() => render(), 120));
+}
+
+// 5. matchMedia breakpoint listener — belt-and-suspenders
+window.matchMedia('(min-width: 768px)').addEventListener('change', () => render());
 
 // ══════════════════════════════════════════════════════════════════════════
 // INIT
