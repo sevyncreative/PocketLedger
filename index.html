@@ -753,8 +753,26 @@ select option { background: var(--bg2); }
         <label class="form-label">Low Balance Alert Threshold ($)</label>
         <input type="number" id="settings-threshold" placeholder="e.g. 200.00" step="0.01">
       </div>
-      <div class="settings-section-title" style="margin-top:8px;">Data</div>
-      <button onclick="exportCSV()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📤 Export All Data as CSV</button>
+      <div class="settings-section-title" style="margin-top:8px;">Backup &amp; Restore</div>
+
+      <!-- Backup info bar -->
+      <div id="backup-status" style="padding:10px 14px;border-radius:var(--r-sm);background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text2);line-height:1.5;">
+        Last backup: <span id="last-backup-label" style="color:var(--text);">Never</span>
+      </div>
+
+      <!-- Backup JSON (use this before updating the app) -->
+      <button onclick="exportBackup()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(0,229,160,0.08);color:var(--accent);border:1px solid rgba(0,229,160,0.2);font-size:13px;font-weight:600;">💾 Backup Data (save before updating)</button>
+
+      <!-- Restore from backup -->
+      <div style="position:relative;">
+        <button onclick="document.getElementById('restore-file-input').click()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📂 Restore from Backup File</button>
+        <input type="file" id="restore-file-input" accept=".json" style="display:none;" onchange="restoreBackup(event)">
+      </div>
+
+      <div class="settings-section-title">Export</div>
+      <button onclick="exportCSV()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📤 Export as CSV (spreadsheet)</button>
+
+      <div class="settings-section-title">Danger Zone</div>
       <button onclick="clearAllData()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(255,77,109,0.08);color:var(--danger);border:1px solid rgba(255,77,109,0.2);font-size:13px;">🗑 Clear All Data</button>
       <button class="submit-btn income" style="margin-top:4px;" onclick="saveSettings()">Save Settings</button>
     </div>
@@ -1405,6 +1423,7 @@ function openSettings() {
   document.getElementById('settings-balance-date').value = state.baselineDate || todayStr();
   document.getElementById('settings-threshold').value = state.threshold || '';
   document.getElementById('settings-modal').classList.add('open');
+  updateBackupLabel();
 }
 
 function saveSettings() {
@@ -1433,17 +1452,102 @@ function closeModal(event) {
 // ══════════════════════════════════════════════════════════════════════════
 // EXPORT
 // ══════════════════════════════════════════════════════════════════════════
+// ── BACKUP & RESTORE ────────────────────────────────────────────────────
+
+const BACKUP_VERSION = 1;
+
+function exportBackup() {
+  const backup = {
+    _version:   BACKUP_VERSION,
+    _app:       'PocketLedger',
+    _exported:  new Date().toISOString(),
+    ...state
+  };
+  const json = JSON.stringify(backup, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().split('T')[0];
+  a.href = URL.createObjectURL(blob);
+  a.download = `pocketledger_backup_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Record backup time
+  const now = new Date().toLocaleString();
+  try { localStorage.setItem('pocketledger_last_backup', now); } catch(_) {}
+  updateBackupLabel();
+}
+
+function updateBackupLabel() {
+  const el = document.getElementById('last-backup-label');
+  if (!el) return;
+  try {
+    const t = localStorage.getItem('pocketledger_last_backup');
+    el.textContent = t || 'Never';
+    el.style.color = t ? 'var(--accent)' : 'var(--warn)';
+  } catch(_) {}
+}
+
+function restoreBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const raw = JSON.parse(e.target.result);
+      // Validate it looks like a PocketLedger backup
+      if (!raw._app || raw._app !== 'PocketLedger') {
+        alert('This does not look like a PocketLedger backup file.');
+        return;
+      }
+      if (!Array.isArray(raw.entries)) {
+        alert('Backup file is missing entries data.');
+        return;
+      }
+      // Migration: handle future schema versions gracefully
+      const restored = migrateBackup(raw);
+      if (!confirm(`Restore ${restored.entries.length} entries from backup dated ${raw._exported ? new Date(raw._exported).toLocaleDateString() : 'unknown'}?\n\nThis will REPLACE your current data.`)) return;
+
+      state = restored;
+      await saveState();
+      closeSettingsModal();
+      render();
+      setTimeout(() => alert('✓ Data restored successfully!'), 200);
+    } catch(err) {
+      alert('Could not read backup file. Make sure it is a valid PocketLedger .json backup.');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so same file can be re-selected if needed
+  event.target.value = '';
+}
+
+function migrateBackup(raw) {
+  // Strip internal backup metadata fields, keep only state fields
+  const { _version, _app, _exported, ...data } = raw;
+  // Ensure all required fields exist with safe defaults
+  return {
+    entries:      Array.isArray(data.entries)     ? data.entries     : [],
+    baseline:     typeof data.baseline === 'number' ? data.baseline   : 0,
+    baselineDate: data.baselineDate || todayStr(),
+    threshold:    typeof data.threshold === 'number' ? data.threshold : 200,
+  };
+}
+
 function exportCSV() {
   const rows = [['ID','Type','Label','Amount','Date','Recur','Frequency','EndDate','Category','Notes']];
   for (const e of state.entries) {
     rows.push([e.id, e.type, e.label, e.amount, e.date, e.recur, e.freq||'', e.endDate||'', e.category||'', e.notes||'']);
   }
   const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
-  const blob = new Blob([csv], { type:'text/csv' });
+  const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'pocketledger_export.csv';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
 }
 
 function clearAllData() {
@@ -1534,52 +1638,107 @@ async function boot() {
 
 boot();
 
-// ── SERVICE WORKER registration ────────────────────────────────────────
-if ('serviceWorker' in navigator) {
-  // Inline SW as a blob so no separate sw.js file is needed
-  const swCode = `
-const CACHE = 'pocketledger-v1';
-const SELF_URL = self.location.href;
+// ── PERSISTENT STORAGE REQUEST ─────────────────────────────────────────
+// Asks Android/Chrome to never evict this app's IndexedDB data.
+// Only works on HTTPS (GitHub Pages). Shows a permission prompt once.
+async function requestPersistentStorage() {
+  if (!navigator.storage || !navigator.storage.persist) return;
+  try {
+    const already = await navigator.storage.persisted();
+    if (already) return; // already granted, nothing to do
+    const granted = await navigator.storage.persist();
+    console.log('Persistent storage granted:', granted);
+    // Store the result so we don't ask again
+    try { localStorage.setItem('pl_storage_persisted', granted ? '1' : '0'); } catch(_) {}
+  } catch(e) { console.warn('storage.persist() failed', e); }
+}
 
+// ── SERVICE WORKER ──────────────────────────────────────────────────────
+// Uses a versioned cache name. When you push a new index.html to GitHub,
+// bump APP_VERSION below — the SW will install the new file, then delete
+// the old cache on activate. Data in IndexedDB is never touched by the SW.
+const APP_VERSION = '1.0.0'; // <-- bump this when you update the app
+
+if ('serviceWorker' in navigator) {
+  const swCode = `
+const CACHE_NAME = 'pocketledger-shell-${APP_VERSION}';
+
+// On install: cache the app shell (the HTML file itself)
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.add(SELF_URL))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll([self.registration.scope]);
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
+// On activate: delete ALL old caches (different version names)
+// This ensures stale cached HTML is never served after an update.
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+      Promise.all(
+        keys
+          .filter(k => k !== CACHE_NAME)
+          .map(k => {
+            console.log('SW: deleting old cache', k);
+            return caches.delete(k);
+          })
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// Fetch strategy:
+//   Navigation requests (loading the app) → network first, cache fallback
+//   Everything else (fonts, etc.)         → cache first, network fallback
 self.addEventListener('fetch', e => {
-  // Cache-first for the app shell, network-first for everything else
-  if (e.request.url === SELF_URL || e.request.mode === 'navigate') {
+  if (e.request.mode === 'navigate') {
+    // Network-first: always try to get the latest index.html from GitHub,
+    // fall back to cache if offline.
     e.respondWith(
-      caches.match(e.request).then(cached => {
-        const networkFetch = fetch(e.request).then(res => {
+      fetch(e.request)
+        .then(res => {
           if (res.ok) {
             const clone = res.clone();
-            caches.open(CACHE).then(c => c.put(e.request, clone));
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
           }
           return res;
-        }).catch(() => cached);
-        return cached || networkFetch;
+        })
+        .catch(() => caches.match(e.request))
+    );
+  } else {
+    // Cache-first for assets
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        return cached || fetch(e.request).then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          }
+          return res;
+        });
       })
     );
   }
 });
   `;
+
   const blob = new Blob([swCode], { type: 'application/javascript' });
   const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl, { scope: '/' })
-    .then(() => console.log('PocketLedger SW registered'))
-    .catch(e => console.warn('SW registration failed (expected on file://)', e));
+
+  navigator.serviceWorker.register(swUrl)
+    .then(reg => {
+      console.log('PocketLedger SW registered, scope:', reg.scope);
+      // Request persistent storage after SW is ready
+      requestPersistentStorage();
+    })
+    .catch(e => {
+      // Expected on file:// — not an error, just can't register locally
+      console.warn('SW not registered (file:// or unsupported):', e.message);
+      // Still request persistent storage in case it works without SW
+      requestPersistentStorage();
+    });
 }
 </script>
 </body>
