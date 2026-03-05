@@ -709,6 +709,7 @@ select option { background: var(--bg2); }
       <div class="form-row" id="category-row" style="display:none;">
         <label class="form-label">Category</label>
         <select id="entry-category">
+          <option value="Bills">💡 Bills</option>
           <option value="Housing">🏠 Housing</option>
           <option value="Food">🍔 Food</option>
           <option value="Transport">🚗 Transport</option>
@@ -925,10 +926,18 @@ function getOccurrences(entry, fromDate, toDate) {
 
 function buildTimeline(fromDate, toDate) {
   const events = [];
+  const overrides = state.overrides || [];
   for (const entry of state.entries) {
     const occ = getOccurrences(entry, fromDate, toDate);
     for (const date of occ) {
-      events.push({ date, entry });
+      // Check for override
+      const ov = overrides.find(o => o.entryId === entry.id && o.date === date);
+      if (ov && ov.skip) continue; // skipped occurrence
+      if (ov) {
+        events.push({ date, entry: { ...entry, amount: ov.amount ?? entry.amount, label: ov.label ?? entry.label, notes: ov.notes ?? entry.notes } });
+      } else {
+        events.push({ date, entry });
+      }
     }
   }
   events.sort((a, b) => a.date.localeCompare(b.date));
@@ -1109,7 +1118,7 @@ function renderInnerEntries() {
     return;
   }
 
-  const icons = { Housing:'🏠', Food:'🍔', Transport:'🚗', Subscriptions:'📱', Healthcare:'🏥', Entertainment:'🎬', Other:'📦' };
+  const icons = { Bills:'💡', Housing:'🏠', Food:'🍔', Transport:'🚗', Subscriptions:'📱', Healthcare:'🏥', Entertainment:'🎬', Other:'📦' };
   const freqLabels = { 'one-time':'One-time','weekly':'Weekly','biweekly':'Biweekly','monthly':'Monthly','semi-monthly':'Semi-monthly','quarterly':'Quarterly' };
 
   let html = '';
@@ -1150,11 +1159,10 @@ function renderInnerEntries() {
 
 function renderInnerRight() {
   const content = document.getElementById('inner-right-content');
-  if (currentInnerTab === 'timeline') {
-    renderTimeline(content);
-  } else {
-    renderOutlook(content);
-  }
+  if (currentInnerTab === 'timeline')   renderTimeline(content);
+  else if (currentInnerTab === 'outlook') renderOutlook(content);
+  else if (currentInnerTab === 'graph')   renderGraph(content);
+  else if (currentInnerTab === 'calendar') renderCalendar(content);
 }
 
 function renderTimeline(container) {
@@ -1214,56 +1222,392 @@ function renderTimeline(container) {
 }
 
 function renderOutlook(container) {
-  const outlooks = getOutlookBalances();
-  const max = Math.max(...outlooks.map(o => Math.abs(o.balance)), 1);
-
-  const barsHtml = outlooks.map(o => {
-    const pct = Math.min(100, (Math.abs(o.balance) / max) * 100);
-    const pos = o.balance >= 0;
-    return `<div class="outlook-bar-wrap">
-      <div class="outlook-bar-label">${o.days} Days</div>
-      <div class="outlook-bar-track">
-        <div class="outlook-bar-fill ${pos ? 'positive' : 'negative'}" style="height:${pct}%"></div>
-      </div>
-      <div class="outlook-bar-val ${pos ? 'positive' : 'negative'}">${formatMoney(o.balance)}</div>
-    </div>`;
-  }).join('');
-
-  // Monthly income vs expense
+  // Monthly income vs expense summary (kept as-is)
   const months = [0,1,2].map(m => {
     const start = new Date(); start.setDate(1); start.setMonth(start.getMonth() + m);
     const end = new Date(start); end.setMonth(end.getMonth() + 1); end.setDate(0);
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
-    const evts = buildTimeline(startStr, endStr);
+    const evts = buildTimeline(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
     let inc = 0, exp = 0;
-    for (const ev of evts) {
-      if (ev.entry.type === 'income') inc += ev.entry.amount;
-      else exp += ev.entry.amount;
-    }
-    return { label: start.toLocaleDateString('en-US', { month:'short', year:'2-digit' }), inc, exp, net: inc - exp };
+    for (const ev of evts) { if (ev.entry.type === 'income') inc += ev.entry.amount; else exp += ev.entry.amount; }
+    return { label: start.toLocaleDateString('en-US', { month:'short', year:'2-digit' }), inc, exp, net: inc-exp };
   });
-
   const monthRows = months.map(m => `
     <div class="tl-row">
       <div style="font-family:var(--font-h);font-size:13px;font-weight:700;color:var(--text2);min-width:44px;">${m.label}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:12px;color:var(--text);">Income: <span style="color:var(--green);">${formatMoney(m.inc)}</span> &nbsp; Expenses: <span style="color:var(--red);">${formatMoney(m.exp)}</span></div>
-      </div>
-      <div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${m.net >= 0 ? 'var(--green)' : 'var(--red)'};">${formatMoney(m.net, true)}</div>
+      <div style="flex:1;min-width:0;font-size:12px;color:var(--text);">In: <span style="color:var(--green);">${formatMoney(m.inc)}</span> &nbsp; Out: <span style="color:var(--red);">${formatMoney(m.exp)}</span></div>
+      <div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${m.net>=0?'var(--green)':'var(--red)'};">${formatMoney(m.net,true)}</div>
+    </div>`).join('');
+  container.innerHTML = `<div class="outlook-section"><div class="outlook-title">Monthly Summary</div>${monthRows}</div>`;
+}
+
+// ── GRAPH STATE ──────────────────────────────────────────────────────────
+let graphSpanMonths = 3;
+
+function renderGraph(container) {
+  container.innerHTML = `
+    <div class="graph-controls">
+      <label>Show next</label>
+      <input type="number" id="graph-span" value="${graphSpanMonths}" min="1" max="24" style="width:70px;">
+      <label>months</label>
+      <button onclick="applyGraphSpan()" style="padding:7px 14px;border-radius:var(--r-sm);background:rgba(0,229,160,0.1);color:var(--accent);border:1px solid rgba(0,229,160,0.2);font-size:12px;">Apply</button>
     </div>
-  `).join('');
+    <div class="graph-wrap" id="graph-wrap">
+      <div id="graph-tooltip" class="graph-tooltip"></div>
+    </div>`;
+  drawGraph();
+}
+
+function applyGraphSpan() {
+  const v = parseInt(document.getElementById('graph-span').value);
+  if (v >= 1 && v <= 24) { graphSpanMonths = v; drawGraph(); }
+}
+
+function drawGraph() {
+  const wrap = document.getElementById('graph-wrap');
+  if (!wrap) return;
+
+  // Build daily balance points
+  const today = new Date();
+  const endDate = new Date(today);
+  endDate.setMonth(endDate.getMonth() + graphSpanMonths);
+  const todayStr = today.toISOString().split('T')[0];
+  const endStr   = endDate.toISOString().split('T')[0];
+
+  // Get all events in range
+  const events = buildTimeline(state.baselineDate || todayStr, endStr);
+
+  // Build points: one per day that has an event, plus start + end
+  const pointMap = {};
+  let bal = state.baseline;
+  // Fast-forward to today
+  for (const ev of buildTimeline(state.baselineDate || todayStr, todayStr)) {
+    bal += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
+  }
+  pointMap[todayStr] = bal;
+  for (const ev of events) {
+    if (ev.date < todayStr) continue;
+    bal += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
+    pointMap[ev.date] = bal;
+  }
+  pointMap[endStr] = pointMap[endStr] || bal;
+
+  const points = Object.entries(pointMap).sort((a,b) => a[0].localeCompare(b[0]));
+  if (points.length < 2) { wrap.innerHTML += '<div style="color:var(--text2);font-size:13px;padding:40px 0;text-align:center;">Add entries to see your balance graph</div>'; return; }
+
+  const W = wrap.clientWidth || 600;
+  const H = 260;
+  const PAD = { top:20, right:16, bottom:36, left:64 };
+  const gW = W - PAD.left - PAD.right;
+  const gH = H - PAD.top  - PAD.bottom;
+
+  const vals = points.map(p => p[1]);
+  const minV = Math.min(...vals, 0);
+  const maxV = Math.max(...vals, 0);
+  const rangeV = maxV - minV || 1;
+
+  const dates = points.map(p => new Date(p[0] + 'T12:00:00').getTime());
+  const minD = dates[0], maxD = dates[dates.length-1], rangeD = maxD - minD || 1;
+
+  const toX = d => PAD.left + ((d - minD) / rangeD) * gW;
+  const toY = v => PAD.top  + (1 - (v - minV) / rangeV) * gH;
+  const zeroY = toY(0);
+
+  // Build SVG path (step line — balance only changes on event days)
+  let pathD = '';
+  for (let i = 0; i < points.length; i++) {
+    const x = toX(dates[i]);
+    const y = toY(points[i][1]);
+    if (i === 0) { pathD += `M${x},${y}`; }
+    else {
+      // Horizontal then vertical (step)
+      const prevX = toX(dates[i-1]);
+      pathD += ` H${x} V${y}`;
+    }
+  }
+
+  // Fill path (area under curve)
+  const fillD = pathD + ` V${zeroY} H${toX(dates[0])} Z`;
+
+  // Month tick marks
+  const monthTicks = [];
+  const cur = new Date(today); cur.setDate(1); cur.setMonth(cur.getMonth()+1);
+  while (cur <= endDate) {
+    const x = toX(cur.getTime());
+    const lbl = cur.toLocaleDateString('en-US', { month:'short' });
+    monthTicks.push({ x, lbl });
+    cur.setMonth(cur.getMonth()+1);
+  }
+
+  // Y-axis ticks
+  const yTicks = [];
+  const step = rangeV / 4;
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + step * i;
+    yTicks.push({ y: toY(v), v });
+  }
+
+  // Build circle points for hover
+  const circles = points.map((p, i) => `<circle class="graph-pt" cx="${toX(dates[i])}" cy="${toY(p[1])}" r="4" fill="${p[1] >= 0 ? 'var(--accent)' : 'var(--danger)'}" stroke="var(--bg2)" stroke-width="2" style="cursor:pointer;" data-date="${p[0]}" data-val="${p[1].toFixed(2)}"/>`).join('');
+
+  const svg = `<svg class="graph-svg" viewBox="0 0 ${W} ${H}" height="${H}">
+    <defs>
+      <linearGradient id="gfill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${minV < 0 ? '#ff4d6d' : '#00e5a0'}" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="${minV < 0 ? '#ff4d6d' : '#00e5a0'}" stop-opacity="0.03"/>
+      </linearGradient>
+    </defs>
+    <!-- Zero line -->
+    <line x1="${PAD.left}" y1="${zeroY}" x2="${W-PAD.right}" y2="${zeroY}" class="graph-zero-line"/>
+    <!-- Y ticks -->
+    ${yTicks.map(t => `
+      <line x1="${PAD.left-6}" y1="${t.y}" x2="${PAD.left}" y2="${t.y}" stroke="var(--border)" stroke-width="1"/>
+      <text x="${PAD.left-8}" y="${t.y+4}" text-anchor="end" font-size="9" fill="var(--text2)" font-family="monospace">${t.v >= 1000 ? '$'+(t.v/1000).toFixed(1)+'k' : '$'+Math.round(t.v)}</text>`).join('')}
+    <!-- X month ticks -->
+    ${monthTicks.map(t => `
+      <line x1="${t.x}" y1="${PAD.top}" x2="${t.x}" y2="${H-PAD.bottom}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2,4"/>
+      <text x="${t.x}" y="${H-PAD.bottom+14}" text-anchor="middle" font-size="9" fill="var(--text2)" font-family="monospace">${t.lbl}</text>`).join('')}
+    <!-- Fill area -->
+    <path d="${fillD}" fill="url(#gfill)"/>
+    <!-- Line -->
+    <path d="${pathD}" fill="none" stroke="${minV < 0 ? 'var(--danger)' : 'var(--accent)'}" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Points -->
+    ${circles}
+  </svg>`;
+
+  // Remove old SVG if re-drawing
+  const oldSvg = wrap.querySelector('svg');
+  if (oldSvg) oldSvg.remove();
+  wrap.insertAdjacentHTML('beforeend', svg);
+
+  // Tooltip hover
+  const tooltip = document.getElementById('graph-tooltip');
+  wrap.querySelectorAll('.graph-pt').forEach(pt => {
+    pt.addEventListener('mouseenter', e => {
+      const d = new Date(pt.dataset.date + 'T12:00:00');
+      const v = parseFloat(pt.dataset.val);
+      tooltip.innerHTML = `<div style="font-size:10px;color:var(--text2);">${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div><div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${v>=0?'var(--accent)':'var(--danger)'};">${formatMoney(v)}</div>`;
+      tooltip.style.opacity = '1';
+      const rect = wrap.getBoundingClientRect();
+      const ptRect = pt.getBoundingClientRect();
+      let left = ptRect.left - rect.left + 8;
+      if (left + 160 > rect.width) left = left - 168;
+      tooltip.style.left = left + 'px';
+      tooltip.style.top  = (ptRect.top - rect.top - 48) + 'px';
+    });
+    pt.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+    pt.addEventListener('touchstart', e => {
+      e.preventDefault();
+      pt.dispatchEvent(new MouseEvent('mouseenter'));
+    }, { passive:false });
+  });
+}
+
+// ── CALENDAR ─────────────────────────────────────────────────────────────
+let calYear, calMonth;
+
+function renderCalendar(container) {
+  const now = new Date();
+  if (calYear  === undefined) calYear  = now.getFullYear();
+  if (calMonth === undefined) calMonth = now.getMonth();
+
+  // Build day map for the displayed month
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay  = new Date(calYear, calMonth + 1, 0);
+  const fromStr  = firstDay.toISOString().split('T')[0];
+  const toStr    = lastDay.toISOString().split('T')[0];
+  const events   = buildTimeline(fromStr, toStr);
+
+  // Group events by date
+  const dayMap = {};
+  for (const ev of events) {
+    if (!dayMap[ev.date]) dayMap[ev.date] = [];
+    dayMap[ev.date].push(ev);
+  }
+
+  const todayStr = now.toISOString().split('T')[0];
+  const monthLabel = firstDay.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+
+  // Grid: start from Sunday of the week containing day 1
+  const startOffset = firstDay.getDay(); // 0=Sun
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) {
+    const d = new Date(firstDay); d.setDate(d.getDate() - (startOffset - i));
+    cells.push({ date: d, thisMonth: false });
+  }
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push({ date: new Date(calYear, calMonth, d), thisMonth: true });
+  while (cells.length % 7 !== 0) {
+    const d = new Date(lastDay); d.setDate(lastDay.getDate() + (cells.length - lastDay.getDate() - startOffset + 1));
+    cells.push({ date: d, thisMonth: false });
+  }
+
+  const cellsHtml = cells.map(({ date, thisMonth }) => {
+    const ds = date.toISOString().split('T')[0];
+    const evts = dayMap[ds] || [];
+    const isToday = ds === todayStr;
+    let netCls = '';
+    let net = 0;
+    let inDots = 0, outDots = 0;
+    for (const ev of evts) {
+      if (ev.entry.type === 'income') { net += ev.entry.amount; inDots++; }
+      else { net -= ev.entry.amount; outDots++; }
+    }
+    if (evts.length) netCls = net >= 0 ? 'net-positive' : 'net-negative';
+    const dots = [
+      ...Array(Math.min(inDots, 3)).fill('<div class="cal-dot income"></div>'),
+      ...Array(Math.min(outDots, 3)).fill('<div class="cal-dot expense"></div>'),
+    ].join('');
+    const netLbl = evts.length ? `<div class="cal-net ${net>=0?'pos':'neg'}">${net>=0?'+':''}${Math.round(Math.abs(net))}</div>` : '';
+    return `<div class="cal-cell ${isToday?'today':''} ${thisMonth?'':'other-month'} ${netCls}" onclick="openDayModal('${ds}')">
+      <div class="cal-day-num">${date.getDate()}</div>
+      <div class="cal-dots">${dots}</div>
+      ${netLbl}
+    </div>`;
+  }).join('');
 
   container.innerHTML = `
-    <div class="outlook-section">
-      <div class="outlook-title">Balance Outlook</div>
-      <div class="outlook-bars">${barsHtml}</div>
+    <div class="cal-header">
+      <button class="cal-nav" onclick="calNav(-1)">‹</button>
+      <div class="cal-month-label">${monthLabel}</div>
+      <button class="cal-nav" onclick="calNav(1)">›</button>
     </div>
-    <div class="outlook-section">
-      <div class="outlook-title">Monthly Summary</div>
-      ${monthRows}
-    </div>
+    <div class="cal-weekdays">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<div class="cal-weekday">${d}</div>`).join('')}</div>
+    <div class="cal-grid">${cellsHtml}</div>
   `;
+}
+
+function calNav(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderInnerRight();
+}
+
+// ── DAY DETAIL MODAL ─────────────────────────────────────────────────────
+let currentDayStr = null;
+let currentOccurrenceEntry = null;
+
+function openDayModal(dateStr) {
+  currentDayStr = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('day-modal-title').textContent = d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+  const events = buildTimeline(dateStr, dateStr);
+  const runningBal = projectBalance(dateStr);
+
+  const icons = { Bills:'💡', Housing:'🏠', Food:'🍔', Transport:'🚗', Subscriptions:'📱', Healthcare:'🏥', Entertainment:'🎬', Other:'📦' };
+
+  let bodyHtml = '<div class="day-detail-list">';
+  if (!events.length) {
+    bodyHtml += '<div style="text-align:center;padding:32px 0;color:var(--text2);font-size:13px;">No transactions on this day</div>';
+  } else {
+    for (const ev of events) {
+      const sign = ev.entry.type === 'income' ? '+' : '-';
+      const color = ev.entry.type === 'income' ? 'var(--green)' : 'var(--red)';
+      const icon = ev.entry.type === 'income' ? '📈' : (icons[ev.entry.category] || '📦');
+      const recurBadge = ev.entry.recur === 'recurring' ? `<span style="font-size:9px;background:rgba(0,229,160,0.1);color:var(--accent);padding:2px 6px;border-radius:10px;margin-left:6px;">🔄 ${ev.entry.freq}</span>` : '';
+      bodyHtml += `<div class="day-detail-item" onclick="openOccurrenceModal('${ev.entry.id}', '${dateStr}')">
+        <div class="day-detail-icon" style="background:${ev.entry.type==='income'?'rgba(0,229,160,0.1)':'rgba(255,77,109,0.1)'};">${icon}</div>
+        <div class="day-detail-info">
+          <div class="day-detail-name">${ev.entry.label}${recurBadge}</div>
+          <div class="day-detail-sub">${ev.entry.category || (ev.entry.type==='income'?'Income':'Expense')}${ev.entry.notes ? ' · ' + ev.entry.notes : ''}</div>
+        </div>
+        <div class="day-detail-amount" style="color:${color};">${sign}${formatMoney(ev.entry.amount)}</div>
+      </div>`;
+    }
+  }
+  bodyHtml += '</div>';
+
+  // Running balance after this day
+  bodyHtml += `<div class="day-running">
+    <div><div class="day-running-label">Balance after this day</div></div>
+    <div class="day-running-val" style="color:${runningBal>=0?'var(--accent)':'var(--danger)'};">${formatMoney(runningBal)}</div>
+  </div>`;
+
+  bodyHtml += `<button onclick="openAddModalForDate('${dateStr}')" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(0,229,160,0.08);color:var(--accent);border:1px solid rgba(0,229,160,0.2);font-size:13px;margin-top:4px;">+ Add transaction on this day</button>`;
+
+  document.getElementById('day-modal-body').innerHTML = bodyHtml;
+  document.getElementById('day-modal').classList.add('open');
+}
+
+function closeDayModal() {
+  document.getElementById('day-modal').classList.remove('open');
+}
+
+function openAddModalForDate(dateStr) {
+  closeDayModal();
+  openAddModal();
+  setTimeout(() => { document.getElementById('entry-date').value = dateStr; }, 50);
+}
+
+// ── OCCURRENCE EDIT ──────────────────────────────────────────────────────
+let occurrenceTargetDate = null;
+
+function openOccurrenceModal(entryId, dateStr) {
+  const entry = state.entries.find(e => e.id === entryId);
+  if (!entry) return;
+  currentOccurrenceEntry = entry;
+  occurrenceTargetDate = dateStr;
+
+  document.getElementById('occurrence-entry-info').innerHTML = `<strong>${entry.label}</strong> &nbsp;·&nbsp; ${formatDate(dateStr)}`;
+  document.getElementById('occ-amount').value = entry.amount;
+  document.getElementById('occ-label').value  = entry.label;
+  document.getElementById('occ-notes').value  = entry.notes || '';
+
+  // For one-time entries, only "all" makes sense — relabel
+  const choiceEl = document.querySelector('.occurrence-choice');
+  if (entry.recur === 'one-time') {
+    choiceEl.innerHTML = `<button class="occurrence-btn" style="grid-column:1/-1;" onclick="saveOccurrence('all')">💾 Save Changes</button>`;
+  } else {
+    choiceEl.innerHTML = `
+      <button class="occurrence-btn" onclick="saveOccurrence('single')">📌 This occurrence only<br><span style="color:var(--text2);font-size:10px;">Just ${formatDateShort(dateStr)}</span></button>
+      <button class="occurrence-btn" onclick="saveOccurrence('all')">🔄 All recurring<br><span style="color:var(--text2);font-size:10px;">Update every instance</span></button>`;
+  }
+
+  document.getElementById('day-modal').classList.remove('open');
+  document.getElementById('occurrence-modal').classList.add('open');
+}
+
+function closeOccurrenceModal() {
+  document.getElementById('occurrence-modal').classList.remove('open');
+}
+
+async function saveOccurrence(mode) {
+  const entry = currentOccurrenceEntry;
+  if (!entry) return;
+
+  const newAmount = parseFloat(document.getElementById('occ-amount').value);
+  const newLabel  = document.getElementById('occ-label').value.trim();
+  const newNotes  = document.getElementById('occ-notes').value.trim();
+
+  if (isNaN(newAmount) || newAmount <= 0) { alert('Enter a valid amount.'); return; }
+
+  if (mode === 'all') {
+    // Update the master entry
+    const idx = state.entries.findIndex(e => e.id === entry.id);
+    state.entries[idx] = { ...entry, amount: newAmount, label: newLabel, notes: newNotes || null };
+    // Remove any single-occurrence overrides for this entry
+    state.overrides = (state.overrides || []).filter(o => o.entryId !== entry.id);
+
+  } else if (mode === 'single') {
+    // Store a date-specific override, don't touch master entry
+    if (!state.overrides) state.overrides = [];
+    const existing = state.overrides.findIndex(o => o.entryId === entry.id && o.date === occurrenceTargetDate);
+    const override = { entryId: entry.id, date: occurrenceTargetDate, amount: newAmount, label: newLabel, notes: newNotes || null };
+    if (existing >= 0) state.overrides[existing] = override;
+    else state.overrides.push(override);
+
+  } else if (mode === 'delete-single') {
+    // Skip this occurrence by marking it deleted
+    if (!state.overrides) state.overrides = [];
+    const existing = state.overrides.findIndex(o => o.entryId === entry.id && o.date === occurrenceTargetDate);
+    const override = { entryId: entry.id, date: occurrenceTargetDate, skip: true };
+    if (existing >= 0) state.overrides[existing] = override;
+    else state.overrides.push(override);
+  }
+
+  await saveState();
+  closeOccurrenceModal();
+  render();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1271,8 +1615,10 @@ function renderOutlook(container) {
 // ══════════════════════════════════════════════════════════════════════════
 function innerTab(tab) {
   currentInnerTab = tab;
-  document.getElementById('tab-timeline').className = 'tab-btn' + (tab === 'timeline' ? ' active' : '');
-  document.getElementById('tab-outlook').className = 'tab-btn' + (tab === 'outlook' ? ' active' : '');
+  ['timeline','outlook','graph','calendar'].forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (el) el.className = 'tab-btn' + (tab === t ? ' active' : '');
+  });
   renderInnerRight();
 }
 
@@ -1775,13 +2121,36 @@ async function runDiag() {
 
   // ── 7. Service Worker ──
   if ('serviceWorker' in navigator) {
+    const swPath = new URL('./sw.js', window.location.href).href;
+    diagLine('SW file expected at: ' + swPath, null);
+
+    // Check if sw.js is actually reachable
+    try {
+      const swResp = await fetch(swPath, { method: 'HEAD' });
+      diagLine('sw.js fetch HEAD status: ' + swResp.status + ' ' + swResp.statusText, swResp.ok);
+      if (!swResp.ok) diagLine('  → sw.js is NOT reachable at this URL — check GitHub repo', false);
+    } catch(e) {
+      diagLine('sw.js fetch failed: ' + e.message, false);
+    }
+
+    // Check registration
     const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
     const swActive = !!(reg && reg.active);
     diagCard('sw', 'Service Worker', swActive ? 'Active ✓' : 'Not Active', swActive);
     diagLine('Service Worker active: ' + swActive, swActive);
-    if (reg) diagLine('SW scope: ' + reg.scope, null);
+    if (reg) {
+      diagLine('SW scope: ' + reg.scope, null);
+      diagLine('SW installing: ' + !!reg.installing, null);
+      diagLine('SW waiting: '    + !!reg.waiting,    null);
+      diagLine('SW active: '     + !!reg.active,     null);
+    } else {
+      diagLine('No SW registration found at all', false);
+    }
+    if (window._swError) {
+      diagLine('SW registration error was: ' + window._swError, false);
+    }
   } else {
-    diagLine('Service Worker: not supported', false);
+    diagLine('Service Worker: not supported in this browser', false);
     diagCard('sw', 'Service Worker', 'Not Supported', false);
   }
 
@@ -1851,20 +2220,31 @@ async function requestPersistentStorage() {
 // ── SERVICE WORKER ──────────────────────────────────────────────────────
 // sw.js lives at repo root alongside index.html on GitHub Pages.
 // When you update the app, bump APP_VERSION in BOTH index.html and sw.js.
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.3';
 
 if ('serviceWorker' in navigator) {
-  // Register sw.js from the repo root (same directory as index.html)
-  navigator.serviceWorker.register('./sw.js')
+  // Derive sw.js URL from current page location so it works in any
+  // GitHub Pages subdirectory (e.g. /PocketLedger/sw.js)
+  const swPath = new URL('./sw.js', window.location.href).href;
+  console.log('[PocketLedger] Registering SW from:', swPath);
+
+  navigator.serviceWorker.register(swPath, { scope: new URL('./', window.location.href).pathname })
     .then(reg => {
-      console.log('[PocketLedger] SW registered, scope:', reg.scope);
+      console.log('[PocketLedger] SW registered OK, scope:', reg.scope);
+      console.log('[PocketLedger] SW state:', reg.active ? 'active' : reg.installing ? 'installing' : reg.waiting ? 'waiting' : 'unknown');
       requestPersistentStorage();
     })
     .catch(err => {
-      console.warn('[PocketLedger] SW registration failed:', err.message);
-      // Still request persistent storage — IndexedDB works without SW
+      // Log full error details so diagnostics can show them
+      console.error('[PocketLedger] SW registration FAILED:', err.name, err.message);
+      window._swError = err.name + ': ' + err.message;
       requestPersistentStorage();
     });
+
+  // Listen for SW becoming active after install
+  navigator.serviceWorker.ready.then(reg => {
+    console.log('[PocketLedger] SW is ready and active:', reg.scope);
+  });
 }
 </script>
 
