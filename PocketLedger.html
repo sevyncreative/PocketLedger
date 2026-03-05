@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PocketLedger</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ─── DESIGN TOKENS ────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0e17;
+  --bg2:       #111827;
+  --bg3:       #1c2538;
+  --surface:   #1a2234;
+  --border:    rgba(255,255,255,0.07);
+  --accent:    #00e5a0;
+  --accent2:   #0090ff;
+  --danger:    #ff4d6d;
+  --warn:      #ffb830;
+  --text:      #f0f4ff;
+  --text2:     #7a8aaa;
+  --text3:     #3d4f70;
+  --green:     #00e5a0;
+  --red:       #ff4d6d;
+  --font-h:    'Syne', sans-serif;
+  --font-m:    'DM Mono', monospace;
+  --r:         16px;
+  --r-sm:      10px;
+  --safe-top:  env(safe-area-inset-top, 0px);
+  --safe-bot:  env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── RESET ────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-m); }
+button { border: none; background: none; color: inherit; cursor: pointer; font-family: inherit; }
+input, select, textarea { font-family: var(--font-m); color: var(--text); background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 14px; font-size: 14px; outline: none; width: 100%; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,229,160,0.12); }
+select option { background: var(--bg2); }
+
+/* ─── SCREEN DETECTION ─────────────────────────────────────────────────── */
+/* Outer screen: width < 500px (cover screen ~390px) */
+/* Inner screen: width ≥ 768px (main 7.9" ~884px) */
+/* Transition: 500-767px fold animation state */
+
+/* ─── APP SHELL ─────────────────────────────────────────────────────────── */
+#app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+/* ─── SCREEN MODE BANNER ────────────────────────────────────────────────── */
+#screen-badge {
+  position: fixed; top: calc(var(--safe-top) + 8px); right: 12px; z-index: 999;
+  background: rgba(0,229,160,0.15); border: 1px solid rgba(0,229,160,0.3);
+  color: var(--accent); font-family: var(--font-m); font-size: 10px; letter-spacing: 0.08em;
+  padding: 4px 10px; border-radius: 20px; text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   OUTER SCREEN LAYOUT (Cover display — folded, ≤ 499px)
+   Compact, thumb-friendly, portrait only, key info at a glance
+══════════════════════════════════════════════════════════════════════════ */
+.outer-layout { display: flex; flex-direction: column; height: 100%; }
+
+/* Outer Header */
+.outer-header {
+  padding: calc(var(--safe-top) + 14px) 16px 12px;
+  background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.outer-header .logo { font-family: var(--font-h); font-size: 18px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+.outer-header .date-chip { font-size: 10px; color: var(--text2); background: var(--bg3); padding: 4px 10px; border-radius: 20px; }
+
+/* Outer Balance Hero */
+.outer-balance {
+  padding: 8px 16px 16px;
+  flex-shrink: 0;
+}
+.outer-balance .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text2); margin-bottom: 4px; }
+.outer-balance .amount { font-family: var(--font-h); font-size: 42px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.outer-balance .amount.positive { color: var(--accent); }
+.outer-balance .amount.negative { color: var(--danger); }
+.outer-balance .sublabel { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+/* Outer Quick Stats */
+.outer-quick-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  padding: 0 16px 14px; flex-shrink: 0;
+}
+.outer-stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 10px 12px;
+}
+.outer-stat .stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text2); margin-bottom: 3px; }
+.outer-stat .stat-val { font-family: var(--font-h); font-size: 15px; font-weight: 700; }
+.outer-stat .stat-val.in { color: var(--green); }
+.outer-stat .stat-val.out { color: var(--red); }
+.outer-stat .stat-sub { font-size: 9px; color: var(--text3); margin-top: 2px; }
+
+/* Outer Timeline */
+.outer-timeline { flex: 1; overflow-y: auto; padding: 0 16px; -webkit-overflow-scrolling: touch; }
+.outer-timeline::-webkit-scrollbar { display: none; }
+.outer-tl-header { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text2); margin-bottom: 8px; }
+.outer-tl-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.outer-tl-item:last-child { border-bottom: none; }
+.outer-tl-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.outer-tl-dot.income { background: var(--green); }
+.outer-tl-dot.expense { background: var(--red); }
+.outer-tl-info { flex: 1; min-width: 0; }
+.outer-tl-name { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.outer-tl-date { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.outer-tl-right { text-align: right; flex-shrink: 0; }
+.outer-tl-amount { font-size: 13px; font-weight: 500; }
+.outer-tl-amount.income { color: var(--green); }
+.outer-tl-amount.expense { color: var(--red); }
+.outer-tl-balance { font-size: 9px; color: var(--text3); margin-top: 1px; }
+
+/* Outer Bottom Nav */
+.outer-bottom-nav {
+  display: flex; flex-shrink: 0;
+  padding: 8px 16px calc(var(--safe-bot) + 12px);
+  gap: 8px; background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.outer-nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 8px 4px; border-radius: var(--r-sm);
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2);
+  transition: all 0.15s;
+}
+.outer-nav-btn.active { color: var(--accent); background: rgba(0,229,160,0.08); }
+.outer-nav-btn svg { width: 20px; height: 20px; }
+
+/* Outer FAB */
+.outer-fab {
+  position: fixed; bottom: calc(var(--safe-bot) + 72px); right: 16px; z-index: 100;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent); color: var(--bg);
+  font-size: 24px; font-weight: 300;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,229,160,0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.outer-fab:active { transform: scale(0.94); box-shadow: 0 2px 10px rgba(0,229,160,0.3); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INNER SCREEN LAYOUT (Main display — unfolded, ≥ 768px)
+   Two-panel, tablet-style, rich data visualization
+══════════════════════════════════════════════════════════════════════════ */
+.inner-layout {
+  display: none; /* hidden by default, shown via JS */
+  height: 100%;
+  flex-direction: column;
+}
+
+/* Inner Top Bar */
+.inner-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(var(--safe-top) + 12px) 24px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg); flex-shrink: 0;
+}
+.inner-topbar .logo { font-family: var(--font-h); font-size: 22px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+.inner-topbar .topbar-center { display: flex; gap: 4px; }
+.inner-topbar .tab-btn {
+  padding: 7px 18px; border-radius: 8px; font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2);
+  transition: all 0.15s;
+}
+.inner-topbar .tab-btn.active { background: var(--surface); color: var(--accent); }
+.inner-topbar .topbar-right { display: flex; gap: 8px; align-items: center; }
+.inner-topbar .add-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 18px; border-radius: var(--r-sm);
+  background: var(--accent); color: var(--bg);
+  font-family: var(--font-h); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: all 0.15s;
+}
+.inner-topbar .add-btn:active { transform: scale(0.97); }
+
+/* Inner Two-Panel Body */
+.inner-body {
+  display: grid; grid-template-columns: 320px 1fr;
+  flex: 1; overflow: hidden;
+}
+
+/* ── LEFT PANEL ── */
+.inner-left {
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg);
+}
+
+/* Balance Card */
+.balance-card {
+  padding: 24px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg) 100%);
+  position: relative; overflow: hidden; flex-shrink: 0;
+}
+.balance-card::before {
+  content: ''; position: absolute; top: -30px; right: -30px;
+  width: 120px; height: 120px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,229,160,0.12) 0%, transparent 70%);
+}
+.balance-card .bc-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text2); margin-bottom: 6px; }
+.balance-card .bc-amount { font-family: var(--font-h); font-size: 36px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.balance-card .bc-amount.positive { color: var(--accent); }
+.balance-card .bc-amount.negative { color: var(--danger); }
+.balance-card .bc-updated { font-size: 10px; color: var(--text3); margin-top: 6px; }
+
+/* Projection Tool */
+.proj-tool {
+  padding: 16px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.proj-tool .proj-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text2); margin-bottom: 8px; }
+.proj-input-row { display: flex; gap: 8px; align-items: center; }
+.proj-input-row input[type="date"] { flex: 1; font-size: 13px; padding: 8px 12px; }
+.proj-btn {
+  padding: 8px 14px; border-radius: var(--r-sm);
+  background: rgba(0,229,160,0.1); color: var(--accent);
+  border: 1px solid rgba(0,229,160,0.2); font-size: 12px;
+  white-space: nowrap; transition: all 0.15s;
+}
+.proj-btn:active { background: rgba(0,229,160,0.2); }
+.proj-result {
+  margin-top: 10px; padding: 10px 14px; border-radius: var(--r-sm);
+  background: var(--bg3); border: 1px solid var(--border); display: none;
+}
+.proj-result .pr-date { font-size: 10px; color: var(--text2); margin-bottom: 3px; }
+.proj-result .pr-amount { font-family: var(--font-h); font-size: 22px; font-weight: 700; }
+.proj-result .pr-amount.positive { color: var(--accent); }
+.proj-result .pr-amount.negative { color: var(--danger); }
+
+/* Quick Stats Grid */
+.inner-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.inner-stat { background: var(--bg); padding: 14px 18px; }
+.inner-stat .s-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text2); margin-bottom: 4px; }
+.inner-stat .s-val { font-family: var(--font-h); font-size: 16px; font-weight: 700; }
+.inner-stat .s-val.in { color: var(--green); }
+.inner-stat .s-val.out { color: var(--red); }
+.inner-stat .s-sub { font-size: 9px; color: var(--text3); margin-top: 2px; }
+
+/* Entries list (left panel bottom) */
+.entries-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.entries-list::-webkit-scrollbar { width: 3px; }
+.entries-list::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+.entries-section-title {
+  padding: 10px 24px 6px; font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--text3);
+  position: sticky; top: 0; background: var(--bg); z-index: 1;
+}
+.entry-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.1s;
+}
+.entry-item:hover { background: var(--bg2); }
+.entry-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.entry-icon.income { background: rgba(0,229,160,0.12); }
+.entry-icon.expense { background: rgba(255,77,109,0.12); }
+.entry-info { flex: 1; min-width: 0; }
+.entry-name { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-meta { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.entry-right { text-align: right; flex-shrink: 0; }
+.entry-amount { font-size: 13px; font-weight: 500; }
+.entry-amount.income { color: var(--green); }
+.entry-amount.expense { color: var(--red); }
+.entry-freq { font-size: 9px; color: var(--text3); margin-top: 2px; }
+
+/* ── RIGHT PANEL ── */
+.inner-right {
+  display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg2);
+}
+
+/* Right panel tab content */
+.right-panel-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 24px; }
+.right-panel-content::-webkit-scrollbar { width: 3px; }
+.right-panel-content::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+/* Timeline view */
+.timeline-view {}
+.tl-month-group { margin-bottom: 24px; }
+.tl-month-label { font-family: var(--font-h); font-size: 14px; font-weight: 700; color: var(--text2); margin-bottom: 12px; letter-spacing: -0.01em; }
+.tl-row {
+  display: grid; grid-template-columns: 44px 1fr auto auto;
+  gap: 14px; align-items: center;
+  padding: 12px 16px; border-radius: var(--r-sm);
+  margin-bottom: 4px; background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.tl-row:hover { background: var(--bg3); }
+.tl-row.warning { border-color: rgba(255,184,48,0.3); background: rgba(255,184,48,0.04); }
+.tl-row.danger { border-color: rgba(255,77,109,0.3); background: rgba(255,77,109,0.04); }
+.tl-day { font-family: var(--font-h); font-size: 20px; font-weight: 800; color: var(--text3); line-height: 1; }
+.tl-day small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-family: var(--font-m); font-weight: 400; }
+.tl-mid { min-width: 0; }
+.tl-name { font-size: 13px; color: var(--text); }
+.tl-cat { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.tl-amount { font-family: var(--font-h); font-size: 16px; font-weight: 700; text-align: right; }
+.tl-amount.income { color: var(--green); }
+.tl-amount.expense { color: var(--red); }
+.tl-running { text-align: right; }
+.tl-running-val { font-size: 12px; color: var(--text2); }
+.tl-running-val.positive { color: var(--accent); }
+.tl-running-val.negative { color: var(--danger); }
+.tl-running-label { font-size: 9px; color: var(--text3); }
+
+/* Outlook bar chart */
+.outlook-section { margin-bottom: 28px; }
+.outlook-title { font-family: var(--font-h); font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.outlook-bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.outlook-bar-wrap { }
+.outlook-bar-label { font-size: 10px; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+.outlook-bar-track { height: 120px; background: var(--bg3); border-radius: 6px; position: relative; overflow: hidden; }
+.outlook-bar-fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 6px; transition: height 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+.outlook-bar-fill.positive { background: linear-gradient(180deg, var(--accent) 0%, rgba(0,229,160,0.4) 100%); }
+.outlook-bar-fill.negative { background: linear-gradient(180deg, var(--danger) 0%, rgba(255,77,109,0.4) 100%); }
+.outlook-bar-val { font-family: var(--font-h); font-size: 13px; font-weight: 700; margin-top: 6px; text-align: center; }
+.outlook-bar-val.positive { color: var(--accent); }
+.outlook-bar-val.negative { color: var(--danger); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL / DRAWER (shared)
+══════════════════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  display: none; align-items: flex-end; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+
+/* Inner screen: centered dialog */
+@media (min-width: 768px) {
+  .modal-overlay { align-items: center; }
+  .modal-sheet { border-radius: var(--r) !important; max-width: 480px !important; width: 100% !important; margin: 20px; }
+}
+
+.modal-sheet {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r) var(--r) 0 0;
+  width: 100%; max-height: 88vh; overflow-y: auto;
+  padding: 0 0 calc(var(--safe-bot) + 16px);
+  animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal-handle {
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 12px auto 0;
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-title { font-family: var(--font-h); font-size: 18px; font-weight: 700; }
+.modal-close { width: 32px; height: 32px; border-radius: 50%; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text2); }
+
+.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Type toggle */
+.type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg3); padding: 4px; border-radius: var(--r-sm); }
+.type-toggle button {
+  padding: 9px; border-radius: 7px; font-size: 13px; font-family: var(--font-h); font-weight: 600;
+  color: var(--text2); transition: all 0.15s;
+}
+.type-toggle button.active { background: var(--surface); }
+.type-toggle button.active.income-btn { color: var(--green); }
+.type-toggle button.active.expense-btn { color: var(--red); }
+
+/* Form rows */
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text2); }
+.form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* One-time / Recurring toggle */
+.recur-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg3); padding: 4px; border-radius: var(--r-sm); }
+.recur-toggle button {
+  padding: 8px; border-radius: 7px; font-size: 12px;
+  color: var(--text2); transition: all 0.15s;
+}
+.recur-toggle button.active { background: var(--surface); color: var(--accent); }
+
+/* Submit btn */
+.submit-btn {
+  width: 100%; padding: 14px; border-radius: var(--r-sm);
+  font-family: var(--font-h); font-size: 15px; font-weight: 700;
+  transition: all 0.15s;
+}
+.submit-btn.income { background: var(--green); color: var(--bg); }
+.submit-btn.expense { background: var(--red); color: var(--text); }
+.submit-btn:active { transform: scale(0.98); }
+
+/* Settings modal */
+.settings-row { display: flex; flex-direction: column; gap: 6px; }
+.settings-section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text2); padding-top: 4px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* Delete btn */
+.delete-btn {
+  width: 100%; padding: 11px; border-radius: var(--r-sm);
+  background: rgba(255,77,109,0.1); color: var(--danger);
+  border: 1px solid rgba(255,77,109,0.2);
+  font-size: 13px; margin-top: 4px; transition: all 0.15s;
+}
+.delete-btn:active { background: rgba(255,77,109,0.2); }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 48px 24px; }
+.empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+.empty-text { font-size: 13px; color: var(--text2); }
+
+/* Alert banner */
+.alert-banner {
+  margin: 0 24px 16px; padding: 10px 14px; border-radius: var(--r-sm);
+  background: rgba(255,77,109,0.08); border: 1px solid rgba(255,77,109,0.25);
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--text);
+}
+.alert-banner .ab-icon { font-size: 16px; flex-shrink: 0; }
+
+/* ─── RESPONSIVE MEDIA QUERIES ──────────────────────────────────────────── */
+
+/* OUTER SCREEN (≤ 499px cover display) */
+@media (max-width: 499px) {
+  .outer-layout { display: flex; }
+  .inner-layout { display: none !important; }
+  #screen-badge::before { content: ''; }
+}
+
+/* TRANSITION STATE (500-767px) */
+@media (min-width: 500px) and (max-width: 767px) {
+  .outer-layout { display: flex; }
+  .inner-layout { display: none !important; }
+}
+
+/* INNER SCREEN (≥ 768px main display) */
+@media (min-width: 768px) {
+  .outer-layout { display: none !important; }
+  .inner-layout { display: flex !important; }
+}
+
+/* Fine-tune for Z Fold 7 inner screen exact dimensions */
+@media (min-width: 884px) {
+  .inner-body { grid-template-columns: 340px 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ SCREEN BADGE ══ -->
+<div id="screen-badge">⬡ outer</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     OUTER LAYOUT — Cover Screen
+══════════════════════════════════════════════════════════════════════ -->
+<div id="app">
+<div class="outer-layout" id="outer-layout">
+
+  <!-- Header -->
+  <div class="outer-header">
+    <span class="logo">PocketLedger</span>
+    <span class="date-chip" id="outer-date">—</span>
+  </div>
+
+  <!-- Balance Hero -->
+  <div class="outer-balance">
+    <div class="label">Current Balance</div>
+    <div class="amount positive" id="outer-balance-val">$0.00</div>
+    <div class="sublabel" id="outer-balance-sub">Set your balance in settings ⚙</div>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="outer-quick-stats">
+    <div class="outer-stat">
+      <div class="stat-label">Next Income</div>
+      <div class="stat-val in" id="outer-next-income-val">—</div>
+      <div class="stat-sub" id="outer-next-income-date">No upcoming</div>
+    </div>
+    <div class="outer-stat">
+      <div class="stat-label">Next Expense</div>
+      <div class="stat-val out" id="outer-next-expense-val">—</div>
+      <div class="stat-sub" id="outer-next-expense-date">No upcoming</div>
+    </div>
+    <div class="outer-stat">
+      <div class="stat-label">30-Day In</div>
+      <div class="stat-val in" id="outer-30in">$0</div>
+      <div class="stat-sub">next 30 days</div>
+    </div>
+    <div class="outer-stat">
+      <div class="stat-label">30-Day Out</div>
+      <div class="stat-val out" id="outer-30out">$0</div>
+      <div class="stat-sub">next 30 days</div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="outer-timeline">
+    <div class="outer-tl-header">Upcoming</div>
+    <div id="outer-tl-items">
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-text">No entries yet. Tap + to add.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav -->
+  <div class="outer-bottom-nav">
+    <button class="outer-nav-btn active" onclick="outerTab('timeline')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      Timeline
+    </button>
+    <button class="outer-nav-btn" onclick="outerTab('lookup')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Lookup
+    </button>
+    <button class="outer-nav-btn" onclick="openSettings()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      Settings
+    </button>
+  </div>
+
+  <!-- Outer FAB -->
+  <button class="outer-fab" onclick="openAddModal()">+</button>
+
+  <!-- Outer Lookup Panel (hidden by default) -->
+  <div id="outer-lookup-panel" style="display:none; padding:16px; flex:1; flex-direction:column; gap:14px;">
+    <div class="form-label">What will I have on...</div>
+    <div style="display:flex;gap:8px;">
+      <input type="date" id="outer-lookup-date" style="flex:1;">
+      <button class="proj-btn" onclick="doLookup('outer')">Check</button>
+    </div>
+    <div class="proj-result" id="outer-lookup-result">
+      <div class="pr-date" id="outer-lookup-result-date"></div>
+      <div class="pr-amount" id="outer-lookup-result-val"></div>
+    </div>
+  </div>
+
+</div><!-- /outer-layout -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     INNER LAYOUT — Main Screen
+══════════════════════════════════════════════════════════════════════ -->
+<div class="inner-layout" id="inner-layout">
+
+  <!-- Top Bar -->
+  <div class="inner-topbar">
+    <span class="logo">PocketLedger</span>
+    <div class="topbar-center">
+      <button class="tab-btn active" id="tab-timeline" onclick="innerTab('timeline')">Timeline</button>
+      <button class="tab-btn" id="tab-outlook" onclick="innerTab('outlook')">Outlook</button>
+    </div>
+    <div class="topbar-right">
+      <button style="padding:8px 14px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text2);font-size:12px;border:1px solid var(--border);" onclick="openSettings()">⚙ Settings</button>
+      <button class="add-btn" onclick="openAddModal()">+ Add Entry</button>
+    </div>
+  </div>
+
+  <!-- Two-Panel Body -->
+  <div class="inner-body">
+
+    <!-- LEFT PANEL -->
+    <div class="inner-left">
+
+      <!-- Balance Card -->
+      <div class="balance-card">
+        <div class="bc-label">Current Balance</div>
+        <div class="bc-amount positive" id="inner-balance-val">$0.00</div>
+        <div class="bc-updated" id="inner-balance-updated">Set your balance in settings</div>
+      </div>
+
+      <!-- Projection Tool -->
+      <div class="proj-tool">
+        <div class="proj-label">Balance on date</div>
+        <div class="proj-input-row">
+          <input type="date" id="inner-lookup-date">
+          <button class="proj-btn" onclick="doLookup('inner')">→</button>
+        </div>
+        <div class="proj-result" id="inner-lookup-result">
+          <div class="pr-date" id="inner-lookup-result-date"></div>
+          <div class="pr-amount" id="inner-lookup-result-val"></div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="inner-stats">
+        <div class="inner-stat">
+          <div class="s-label">Next Income</div>
+          <div class="s-val in" id="inner-next-income-val">—</div>
+          <div class="s-sub" id="inner-next-income-date">—</div>
+        </div>
+        <div class="inner-stat">
+          <div class="s-label">Next Expense</div>
+          <div class="s-val out" id="inner-next-expense-val">—</div>
+          <div class="s-sub" id="inner-next-expense-date">—</div>
+        </div>
+        <div class="inner-stat">
+          <div class="s-label">30-Day In</div>
+          <div class="s-val in" id="inner-30in">$0</div>
+          <div class="s-sub">upcoming</div>
+        </div>
+        <div class="inner-stat">
+          <div class="s-label">30-Day Out</div>
+          <div class="s-val out" id="inner-30out">$0</div>
+          <div class="s-sub">upcoming</div>
+        </div>
+      </div>
+
+      <!-- Entries List -->
+      <div class="entries-list" id="inner-entries-list">
+        <div class="empty-state">
+          <div class="empty-icon">💸</div>
+          <div class="empty-text">Add income and expenses<br>to start tracking</div>
+        </div>
+      </div>
+
+    </div><!-- /inner-left -->
+
+    <!-- RIGHT PANEL -->
+    <div class="inner-right">
+
+      <!-- Alert banner (shown if negative projected) -->
+      <div class="alert-banner" id="inner-alert" style="display:none; margin-top:16px;">
+        <span class="ab-icon">⚠️</span>
+        <span id="inner-alert-text">Your balance will go negative soon.</span>
+      </div>
+
+      <!-- Tab content -->
+      <div class="right-panel-content" id="inner-right-content">
+        <!-- Filled by JS -->
+      </div>
+
+    </div><!-- /inner-right -->
+
+  </div><!-- /inner-body -->
+
+</div><!-- /inner-layout -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     ADD / EDIT MODAL
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-modal" onclick="closeModal(event)">
+  <div class="modal-sheet" onclick="e=>e.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Entry</span>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Income / Expense toggle -->
+      <div class="type-toggle">
+        <button class="active income-btn" id="toggle-income" onclick="setEntryType('income')">📈 Income</button>
+        <button class="expense-btn" id="toggle-expense" onclick="setEntryType('expense')">📉 Expense</button>
+      </div>
+      <!-- Label -->
+      <div class="form-row">
+        <label class="form-label">Label</label>
+        <input type="text" id="entry-label" placeholder="e.g. Main Job Paycheck">
+      </div>
+      <!-- Amount -->
+      <div class="form-row">
+        <label class="form-label">Amount ($)</label>
+        <input type="number" id="entry-amount" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <!-- Date -->
+      <div class="form-row">
+        <label class="form-label">Date</label>
+        <input type="date" id="entry-date">
+      </div>
+      <!-- One-time / Recurring -->
+      <div class="recur-toggle">
+        <button class="active" id="recur-onetime" onclick="setRecurType('one-time')">One-Time</button>
+        <button id="recur-recurring" onclick="setRecurType('recurring')">Recurring</button>
+      </div>
+      <!-- Recurring options -->
+      <div id="recur-options" style="display:none; flex-direction:column; gap:10px;">
+        <div class="form-row">
+          <label class="form-label">Frequency</label>
+          <select id="entry-frequency">
+            <option value="weekly">Weekly</option>
+            <option value="biweekly" selected>Biweekly (every 2 weeks)</option>
+            <option value="semi-monthly">Semi-Monthly (1st & 15th)</option>
+            <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">End Date (optional)</label>
+          <input type="date" id="entry-enddate" placeholder="Leave blank = forever">
+        </div>
+      </div>
+      <!-- Category (expenses only) -->
+      <div class="form-row" id="category-row" style="display:none;">
+        <label class="form-label">Category</label>
+        <select id="entry-category">
+          <option value="Housing">🏠 Housing</option>
+          <option value="Food">🍔 Food</option>
+          <option value="Transport">🚗 Transport</option>
+          <option value="Subscriptions">📱 Subscriptions</option>
+          <option value="Healthcare">🏥 Healthcare</option>
+          <option value="Entertainment">🎬 Entertainment</option>
+          <option value="Other" selected>📦 Other</option>
+        </select>
+      </div>
+      <!-- Notes -->
+      <div class="form-row">
+        <label class="form-label">Notes (optional)</label>
+        <input type="text" id="entry-notes" placeholder="Optional note">
+      </div>
+      <!-- Submit -->
+      <button class="submit-btn income" id="submit-btn" onclick="saveEntry()">Add Income</button>
+      <button class="delete-btn" id="delete-btn" style="display:none;" onclick="deleteEntry()">🗑 Delete Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SETTINGS MODAL
+══════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="settings-modal" onclick="closeModal(event)">
+  <div class="modal-sheet" onclick="e=>e.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">⚙ Settings</span>
+      <button class="modal-close" onclick="closeSettingsModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-row">
+        <label class="form-label">Current Account Balance ($)</label>
+        <input type="number" id="settings-balance" placeholder="e.g. 1850.00" step="0.01">
+      </div>
+      <div class="settings-row">
+        <label class="form-label">Balance As Of Date</label>
+        <input type="date" id="settings-balance-date">
+      </div>
+      <div class="settings-row">
+        <label class="form-label">Low Balance Alert Threshold ($)</label>
+        <input type="number" id="settings-threshold" placeholder="e.g. 200.00" step="0.01">
+      </div>
+      <div class="settings-section-title" style="margin-top:8px;">Data</div>
+      <button onclick="exportCSV()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📤 Export All Data as CSV</button>
+      <button onclick="clearAllData()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(255,77,109,0.08);color:var(--danger);border:1px solid rgba(255,77,109,0.2);font-size:13px;">🗑 Clear All Data</button>
+      <button class="submit-btn income" style="margin-top:4px;" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// STATE & STORAGE
+// ══════════════════════════════════════════════════════════════════════════
+let state = {
+  entries: [],       // [{id, type, label, amount, date, recur, freq, endDate, category, notes}]
+  baseline: 0,
+  baselineDate: todayStr(),
+  threshold: 200,
+};
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('pocketledger_v1');
+    if (s) state = { ...state, ...JSON.parse(s) };
+  } catch(e) {}
+}
+
+function saveState() {
+  try { localStorage.setItem('pocketledger_v1', JSON.stringify(state)); } catch(e) {}
+}
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function formatDate(d) {
+  const dt = new Date(d + 'T12:00:00');
+  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function formatDateShort(d) {
+  const dt = new Date(d + 'T12:00:00');
+  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+function formatMoney(n, showPlus) {
+  const abs = Math.abs(n).toFixed(2);
+  const sign = n < 0 ? '-' : (showPlus && n > 0 ? '+' : '');
+  return sign + '$' + parseFloat(abs).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function uuid() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2,6);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PROJECTION ENGINE
+// ══════════════════════════════════════════════════════════════════════════
+function getOccurrences(entry, fromDate, toDate) {
+  const occurrences = [];
+  const start = new Date(entry.date + 'T12:00:00');
+  const end = entry.endDate ? new Date(entry.endDate + 'T12:00:00') : new Date('2099-12-31');
+  const from = new Date(fromDate + 'T00:00:00');
+  const to = new Date(toDate + 'T23:59:59');
+
+  if (entry.recur === 'one-time') {
+    if (start >= from && start <= to) {
+      occurrences.push(entry.date);
+    }
+    return occurrences;
+  }
+
+  // Recurring
+  let cur = new Date(start);
+  const maxIter = 5000;
+  let i = 0;
+  while (cur <= to && cur <= end && i < maxIter) {
+    i++;
+    if (cur >= from) occurrences.push(cur.toISOString().split('T')[0]);
+    // Advance
+    if (entry.freq === 'weekly')         cur.setDate(cur.getDate() + 7);
+    else if (entry.freq === 'biweekly')  cur.setDate(cur.getDate() + 14);
+    else if (entry.freq === 'monthly')   cur.setMonth(cur.getMonth() + 1);
+    else if (entry.freq === 'quarterly') cur.setMonth(cur.getMonth() + 3);
+    else if (entry.freq === 'semi-monthly') {
+      // 1st → 15th → next 1st
+      const d = cur.getDate();
+      if (d < 15) { cur.setDate(15); }
+      else { cur.setMonth(cur.getMonth() + 1); cur.setDate(1); }
+    }
+  }
+  return occurrences;
+}
+
+function buildTimeline(fromDate, toDate) {
+  const events = [];
+  for (const entry of state.entries) {
+    const occ = getOccurrences(entry, fromDate, toDate);
+    for (const date of occ) {
+      events.push({ date, entry });
+    }
+  }
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  return events;
+}
+
+function projectBalance(toDate) {
+  const from = state.baselineDate;
+  let balance = state.baseline;
+  const events = buildTimeline(from, toDate);
+  for (const ev of events) {
+    if (ev.date > toDate) break;
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    balance += sign * ev.entry.amount;
+  }
+  return balance;
+}
+
+function getNext(type) {
+  const today = todayStr();
+  const future = new Date(); future.setDate(future.getDate() + 365);
+  const futureStr = future.toISOString().split('T')[0];
+  const events = buildTimeline(today, futureStr);
+  for (const ev of events) {
+    if (ev.entry.type === type && ev.date >= today) {
+      return { amount: ev.entry.amount, date: ev.date, label: ev.entry.label };
+    }
+  }
+  return null;
+}
+
+function get30DaySums() {
+  const today = todayStr();
+  const fut = new Date(); fut.setDate(fut.getDate() + 30);
+  const futStr = fut.toISOString().split('T')[0];
+  const events = buildTimeline(today, futStr);
+  let income = 0, expense = 0;
+  for (const ev of events) {
+    if (ev.entry.type === 'income') income += ev.entry.amount;
+    else expense += ev.entry.amount;
+  }
+  return { income, expense };
+}
+
+function getOutlookBalances() {
+  const days = [7, 30, 60, 90];
+  return days.map(d => {
+    const dt = new Date(); dt.setDate(dt.getDate() + d);
+    return { days: d, balance: projectBalance(dt.toISOString().split('T')[0]) };
+  });
+}
+
+function findFirstNegative() {
+  const today = todayStr();
+  const fut = new Date(); fut.setDate(fut.getDate() + 90);
+  const futStr = fut.toISOString().split('T')[0];
+  const events = buildTimeline(today, futStr);
+  let bal = state.baseline;
+  for (const ev of events) {
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    bal += sign * ev.entry.amount;
+    if (bal < 0) return { date: ev.date, balance: bal };
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════════════════
+let currentInnerTab = 'timeline';
+
+function render() {
+  const isInner = window.innerWidth >= 768;
+  document.getElementById('screen-badge').textContent = isInner ? '⊞ inner' : '▣ outer';
+
+  // Shared calculations
+  const bal = projectBalance(todayStr());
+  const next30 = get30DaySums();
+  const nextIncome = getNext('income');
+  const nextExpense = getNext('expense');
+  const firstNeg = findFirstNegative();
+
+  // ── OUTER ──
+  const now = new Date();
+  document.getElementById('outer-date').textContent = now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+
+  const obv = document.getElementById('outer-balance-val');
+  obv.textContent = formatMoney(bal);
+  obv.className = 'amount ' + (bal >= 0 ? 'positive' : 'negative');
+  document.getElementById('outer-balance-sub').textContent = 'as of today';
+
+  document.getElementById('outer-next-income-val').textContent = nextIncome ? formatMoney(nextIncome.amount) : '—';
+  document.getElementById('outer-next-income-date').textContent = nextIncome ? formatDateShort(nextIncome.date) + ' · ' + nextIncome.label : 'None upcoming';
+  document.getElementById('outer-next-expense-val').textContent = nextExpense ? formatMoney(nextExpense.amount) : '—';
+  document.getElementById('outer-next-expense-date').textContent = nextExpense ? formatDateShort(nextExpense.date) + ' · ' + nextExpense.label : 'None upcoming';
+  document.getElementById('outer-30in').textContent = formatMoney(next30.income);
+  document.getElementById('outer-30out').textContent = formatMoney(next30.expense);
+
+  renderOuterTimeline();
+
+  // ── INNER ──
+  const ibv = document.getElementById('inner-balance-val');
+  ibv.textContent = formatMoney(bal);
+  ibv.className = 'bc-amount ' + (bal >= 0 ? 'positive' : 'negative');
+  document.getElementById('inner-balance-updated').textContent = 'as of today · baseline: ' + formatMoney(state.baseline);
+
+  document.getElementById('inner-next-income-val').textContent = nextIncome ? formatMoney(nextIncome.amount) : '—';
+  document.getElementById('inner-next-income-date').textContent = nextIncome ? formatDateShort(nextIncome.date) : '—';
+  document.getElementById('inner-next-expense-val').textContent = nextExpense ? formatMoney(nextExpense.amount) : '—';
+  document.getElementById('inner-next-expense-date').textContent = nextExpense ? formatDateShort(nextExpense.date) : '—';
+  document.getElementById('inner-30in').textContent = formatMoney(next30.income);
+  document.getElementById('inner-30out').textContent = formatMoney(next30.expense);
+
+  // Alert
+  const alert = document.getElementById('inner-alert');
+  if (firstNeg && state.threshold !== undefined) {
+    alert.style.display = 'flex';
+    document.getElementById('inner-alert-text').textContent =
+      `⚠ Balance drops to ${formatMoney(firstNeg.balance)} on ${formatDate(firstNeg.date)}`;
+  } else if (bal < state.threshold) {
+    alert.style.display = 'flex';
+    document.getElementById('inner-alert-text').textContent =
+      `Balance is below your threshold of ${formatMoney(state.threshold)}`;
+  } else {
+    alert.style.display = 'none';
+  }
+
+  renderInnerEntries();
+  renderInnerRight();
+}
+
+function renderOuterTimeline() {
+  const today = todayStr();
+  const fut = new Date(); fut.setDate(fut.getDate() + 60);
+  const futStr = fut.toISOString().split('T')[0];
+  const events = buildTimeline(today, futStr);
+
+  const container = document.getElementById('outer-tl-items');
+  if (!events.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No entries yet. Tap + to add.</div></div>';
+    return;
+  }
+
+  let bal = state.baseline;
+  // Fast-forward baseline to today
+  const priorEvents = buildTimeline(state.baselineDate, today);
+  for (const ev of priorEvents) {
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    bal += sign * ev.entry.amount;
+  }
+
+  let html = '';
+  for (const ev of events.slice(0, 15)) {
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    bal += sign * ev.entry.amount;
+    html += `<div class="outer-tl-item">
+      <div class="outer-tl-dot ${ev.entry.type}"></div>
+      <div class="outer-tl-info">
+        <div class="outer-tl-name">${ev.entry.label}</div>
+        <div class="outer-tl-date">${formatDateShort(ev.date)}</div>
+      </div>
+      <div class="outer-tl-right">
+        <div class="outer-tl-amount ${ev.entry.type}">${ev.entry.type === 'income' ? '+' : '-'}${formatMoney(ev.entry.amount)}</div>
+        <div class="outer-tl-balance" style="color:${bal < 0 ? 'var(--danger)' : 'var(--text3)'}">bal: ${formatMoney(bal)}</div>
+      </div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderInnerEntries() {
+  const container = document.getElementById('inner-entries-list');
+  const incomes = state.entries.filter(e => e.type === 'income');
+  const expenses = state.entries.filter(e => e.type === 'expense');
+
+  if (!state.entries.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-text">Add income and expenses<br>to start tracking</div></div>';
+    return;
+  }
+
+  const icons = { Housing:'🏠', Food:'🍔', Transport:'🚗', Subscriptions:'📱', Healthcare:'🏥', Entertainment:'🎬', Other:'📦' };
+  const freqLabels = { 'one-time':'One-time','weekly':'Weekly','biweekly':'Biweekly','monthly':'Monthly','semi-monthly':'Semi-monthly','quarterly':'Quarterly' };
+
+  let html = '';
+  if (incomes.length) {
+    html += '<div class="entries-section-title">Income</div>';
+    for (const e of incomes) {
+      html += `<div class="entry-item" onclick="editEntry('${e.id}')">
+        <div class="entry-icon income">📈</div>
+        <div class="entry-info">
+          <div class="entry-name">${e.label}</div>
+          <div class="entry-meta">${formatDateShort(e.date)}${e.endDate ? ' → ' + formatDateShort(e.endDate) : ''}</div>
+        </div>
+        <div class="entry-right">
+          <div class="entry-amount income">+${formatMoney(e.amount)}</div>
+          <div class="entry-freq">${freqLabels[e.recur === 'one-time' ? 'one-time' : e.freq] || e.freq}</div>
+        </div>
+      </div>`;
+    }
+  }
+  if (expenses.length) {
+    html += '<div class="entries-section-title">Expenses</div>';
+    for (const e of expenses) {
+      html += `<div class="entry-item" onclick="editEntry('${e.id}')">
+        <div class="entry-icon expense">${icons[e.category] || '📦'}</div>
+        <div class="entry-info">
+          <div class="entry-name">${e.label}</div>
+          <div class="entry-meta">${e.category || 'Other'} · ${formatDateShort(e.date)}</div>
+        </div>
+        <div class="entry-right">
+          <div class="entry-amount expense">-${formatMoney(e.amount)}</div>
+          <div class="entry-freq">${freqLabels[e.recur === 'one-time' ? 'one-time' : e.freq] || e.freq}</div>
+        </div>
+      </div>`;
+    }
+  }
+  container.innerHTML = html;
+}
+
+function renderInnerRight() {
+  const content = document.getElementById('inner-right-content');
+  if (currentInnerTab === 'timeline') {
+    renderTimeline(content);
+  } else {
+    renderOutlook(content);
+  }
+}
+
+function renderTimeline(container) {
+  const today = todayStr();
+  const fut = new Date(); fut.setDate(fut.getDate() + 90);
+  const futStr = fut.toISOString().split('T')[0];
+  const events = buildTimeline(today, futStr);
+
+  if (!events.length) {
+    container.innerHTML = '<div class="empty-state" style="margin-top:60px;"><div class="empty-icon">📅</div><div class="empty-text">No upcoming transactions.<br>Add income or expenses to get started.</div></div>';
+    return;
+  }
+
+  // Group by month
+  let bal = state.baseline;
+  const prior = buildTimeline(state.baselineDate, today);
+  for (const ev of prior) {
+    bal += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
+  }
+
+  const months = {};
+  for (const ev of events) {
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    bal += sign * ev.entry.amount;
+    const monthKey = ev.date.substr(0, 7);
+    if (!months[monthKey]) months[monthKey] = [];
+    months[monthKey].push({ ...ev, runningBal: bal });
+  }
+
+  let html = '';
+  for (const [month, evts] of Object.entries(months)) {
+    const dt = new Date(month + '-01T12:00:00');
+    const mLabel = dt.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+    html += `<div class="tl-month-group"><div class="tl-month-label">${mLabel}</div>`;
+    for (const ev of evts) {
+      const d = new Date(ev.date + 'T12:00:00');
+      const dayNum = d.getDate();
+      const dayName = d.toLocaleDateString('en-US', { weekday:'short' });
+      const cls = ev.runningBal < 0 ? 'danger' : (ev.runningBal < state.threshold ? 'warning' : '');
+      const amtSign = ev.entry.type === 'income' ? '+' : '-';
+      html += `<div class="tl-row ${cls}">
+        <div class="tl-day">${dayNum}<small>${dayName}</small></div>
+        <div class="tl-mid">
+          <div class="tl-name">${ev.entry.label}</div>
+          <div class="tl-cat">${ev.entry.type === 'income' ? '📈 Income' : '📉 ' + (ev.entry.category || 'Expense')}${ev.entry.recur !== 'one-time' ? ' · ' + ev.entry.freq : ''}</div>
+        </div>
+        <div class="tl-amount ${ev.entry.type}">${amtSign}${formatMoney(ev.entry.amount)}</div>
+        <div class="tl-running">
+          <div class="tl-running-val ${ev.runningBal >= 0 ? 'positive' : 'negative'}">${formatMoney(ev.runningBal)}</div>
+          <div class="tl-running-label">balance</div>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function renderOutlook(container) {
+  const outlooks = getOutlookBalances();
+  const max = Math.max(...outlooks.map(o => Math.abs(o.balance)), 1);
+
+  const barsHtml = outlooks.map(o => {
+    const pct = Math.min(100, (Math.abs(o.balance) / max) * 100);
+    const pos = o.balance >= 0;
+    return `<div class="outlook-bar-wrap">
+      <div class="outlook-bar-label">${o.days} Days</div>
+      <div class="outlook-bar-track">
+        <div class="outlook-bar-fill ${pos ? 'positive' : 'negative'}" style="height:${pct}%"></div>
+      </div>
+      <div class="outlook-bar-val ${pos ? 'positive' : 'negative'}">${formatMoney(o.balance)}</div>
+    </div>`;
+  }).join('');
+
+  // Monthly income vs expense
+  const months = [0,1,2].map(m => {
+    const start = new Date(); start.setDate(1); start.setMonth(start.getMonth() + m);
+    const end = new Date(start); end.setMonth(end.getMonth() + 1); end.setDate(0);
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    const evts = buildTimeline(startStr, endStr);
+    let inc = 0, exp = 0;
+    for (const ev of evts) {
+      if (ev.entry.type === 'income') inc += ev.entry.amount;
+      else exp += ev.entry.amount;
+    }
+    return { label: start.toLocaleDateString('en-US', { month:'short', year:'2-digit' }), inc, exp, net: inc - exp };
+  });
+
+  const monthRows = months.map(m => `
+    <div class="tl-row">
+      <div style="font-family:var(--font-h);font-size:13px;font-weight:700;color:var(--text2);min-width:44px;">${m.label}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;color:var(--text);">Income: <span style="color:var(--green);">${formatMoney(m.inc)}</span> &nbsp; Expenses: <span style="color:var(--red);">${formatMoney(m.exp)}</span></div>
+      </div>
+      <div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${m.net >= 0 ? 'var(--green)' : 'var(--red)'};">${formatMoney(m.net, true)}</div>
+    </div>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="outlook-section">
+      <div class="outlook-title">Balance Outlook</div>
+      <div class="outlook-bars">${barsHtml}</div>
+    </div>
+    <div class="outlook-section">
+      <div class="outlook-title">Monthly Summary</div>
+      ${monthRows}
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// TAB MANAGEMENT
+// ══════════════════════════════════════════════════════════════════════════
+function innerTab(tab) {
+  currentInnerTab = tab;
+  document.getElementById('tab-timeline').className = 'tab-btn' + (tab === 'timeline' ? ' active' : '');
+  document.getElementById('tab-outlook').className = 'tab-btn' + (tab === 'outlook' ? ' active' : '');
+  renderInnerRight();
+}
+
+let currentOuterTab = 'timeline';
+function outerTab(tab) {
+  currentOuterTab = tab;
+  document.querySelectorAll('.outer-nav-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  const tlPanel = document.querySelector('.outer-timeline');
+  const lookPanel = document.getElementById('outer-lookup-panel');
+  if (tab === 'timeline') {
+    tlPanel.style.display = '';
+    lookPanel.style.display = 'none';
+  } else {
+    tlPanel.style.display = 'none';
+    lookPanel.style.display = 'flex';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LOOKUP
+// ══════════════════════════════════════════════════════════════════════════
+function doLookup(screen) {
+  const dateId = screen + '-lookup-date';
+  const resultId = screen + '-lookup-result';
+  const dateEl = document.getElementById(dateId);
+  const date = dateEl.value;
+  if (!date) return;
+
+  const bal = projectBalance(date);
+  const result = document.getElementById(resultId);
+  result.style.display = 'block';
+  document.getElementById(resultId + '-date').textContent = 'Projected balance on ' + formatDate(date);
+  const valEl = document.getElementById(resultId + '-val');
+  valEl.textContent = formatMoney(bal);
+  valEl.className = 'pr-amount ' + (bal >= 0 ? 'positive' : 'negative');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ADD / EDIT MODAL
+// ══════════════════════════════════════════════════════════════════════════
+let editingId = null;
+let currentEntryType = 'income';
+let currentRecurType = 'one-time';
+
+function openAddModal() {
+  editingId = null;
+  currentEntryType = 'income';
+  currentRecurType = 'one-time';
+  document.getElementById('modal-title').textContent = 'Add Entry';
+  document.getElementById('entry-label').value = '';
+  document.getElementById('entry-amount').value = '';
+  document.getElementById('entry-date').value = todayStr();
+  document.getElementById('entry-notes').value = '';
+  document.getElementById('entry-enddate').value = '';
+  document.getElementById('entry-frequency').value = 'biweekly';
+  document.getElementById('entry-category').value = 'Other';
+  document.getElementById('delete-btn').style.display = 'none';
+  setEntryType('income');
+  setRecurType('one-time');
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function editEntry(id) {
+  const entry = state.entries.find(e => e.id === id);
+  if (!entry) return;
+  editingId = id;
+  currentEntryType = entry.type;
+  currentRecurType = entry.recur;
+  document.getElementById('modal-title').textContent = 'Edit Entry';
+  document.getElementById('entry-label').value = entry.label;
+  document.getElementById('entry-amount').value = entry.amount;
+  document.getElementById('entry-date').value = entry.date;
+  document.getElementById('entry-notes').value = entry.notes || '';
+  document.getElementById('entry-enddate').value = entry.endDate || '';
+  document.getElementById('entry-frequency').value = entry.freq || 'biweekly';
+  document.getElementById('entry-category').value = entry.category || 'Other';
+  document.getElementById('delete-btn').style.display = 'block';
+  setEntryType(entry.type);
+  setRecurType(entry.recur);
+  document.getElementById('add-modal').classList.add('open');
+}
+
+function setEntryType(type) {
+  currentEntryType = type;
+  document.getElementById('toggle-income').classList.toggle('active', type === 'income');
+  document.getElementById('toggle-expense').classList.toggle('active', type === 'expense');
+  document.getElementById('category-row').style.display = type === 'expense' ? 'flex' : 'none';
+  const sb = document.getElementById('submit-btn');
+  sb.className = 'submit-btn ' + type;
+  sb.textContent = (editingId ? 'Save' : 'Add') + ' ' + (type === 'income' ? 'Income' : 'Expense');
+}
+
+function setRecurType(type) {
+  currentRecurType = type;
+  document.getElementById('recur-onetime').classList.toggle('active', type === 'one-time');
+  document.getElementById('recur-recurring').classList.toggle('active', type === 'recurring');
+  document.getElementById('recur-options').style.display = type === 'recurring' ? 'flex' : 'none';
+}
+
+function saveEntry() {
+  const label = document.getElementById('entry-label').value.trim();
+  const amount = parseFloat(document.getElementById('entry-amount').value);
+  const date = document.getElementById('entry-date').value;
+  if (!label || isNaN(amount) || amount <= 0 || !date) {
+    alert('Please fill in label, amount, and date.');
+    return;
+  }
+  const entry = {
+    id: editingId || uuid(),
+    type: currentEntryType,
+    label,
+    amount,
+    date,
+    recur: currentRecurType,
+    freq: currentRecurType === 'recurring' ? document.getElementById('entry-frequency').value : null,
+    endDate: document.getElementById('entry-enddate').value || null,
+    category: currentEntryType === 'expense' ? document.getElementById('entry-category').value : null,
+    notes: document.getElementById('entry-notes').value.trim() || null,
+  };
+  if (editingId) {
+    const idx = state.entries.findIndex(e => e.id === editingId);
+    state.entries[idx] = entry;
+  } else {
+    state.entries.push(entry);
+  }
+  saveState();
+  closeAddModal();
+  render();
+}
+
+function deleteEntry() {
+  if (!editingId) return;
+  if (!confirm('Delete this entry?')) return;
+  state.entries = state.entries.filter(e => e.id !== editingId);
+  saveState();
+  closeAddModal();
+  render();
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('settings-balance').value = state.baseline || '';
+  document.getElementById('settings-balance-date').value = state.baselineDate || todayStr();
+  document.getElementById('settings-threshold').value = state.threshold || '';
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function saveSettings() {
+  const bal = parseFloat(document.getElementById('settings-balance').value);
+  const date = document.getElementById('settings-balance-date').value;
+  const thresh = parseFloat(document.getElementById('settings-threshold').value);
+  if (!isNaN(bal)) state.baseline = bal;
+  if (date) state.baselineDate = date;
+  if (!isNaN(thresh)) state.threshold = thresh;
+  saveState();
+  closeSettingsModal();
+  render();
+}
+
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function closeModal(event) {
+  if (event.target === event.currentTarget) {
+    closeAddModal();
+    closeSettingsModal();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  const rows = [['ID','Type','Label','Amount','Date','Recur','Frequency','EndDate','Category','Notes']];
+  for (const e of state.entries) {
+    rows.push([e.id, e.type, e.label, e.amount, e.date, e.recur, e.freq||'', e.endDate||'', e.category||'', e.notes||'']);
+  }
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pocketledger_export.csv';
+  a.click();
+}
+
+function clearAllData() {
+  if (!confirm('Clear ALL data? This cannot be undone.')) return;
+  state = { entries: [], baseline: 0, baselineDate: todayStr(), threshold: 200 };
+  saveState();
+  closeSettingsModal();
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SCREEN RESIZE HANDLING
+// ══════════════════════════════════════════════════════════════════════════
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => render(), 150);
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+loadState();
+// Set today's date on lookup inputs
+document.getElementById('outer-lookup-date').value = todayStr();
+document.getElementById('inner-lookup-date').value = todayStr();
+render();
+
+// Load demo data on first run
+if (!state.entries.length && state.baseline === 0) {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+
+  const nextFriday = new Date(today);
+  nextFriday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7 || 7));
+  const nextMonth1st = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const mid = new Date(today); mid.setDate(15);
+  if (mid <= today) mid.setMonth(mid.getMonth() + 1);
+  const daysOut = n => { const d = new Date(today); d.setDate(d.getDate()+n); return fmt(d); };
+  const nextDayOfMonth = day => { const d = new Date(today); d.setDate(day); if (d <= today) d.setMonth(d.getMonth()+1); return fmt(d); };
+
+  state.baseline = 2150.00;
+  state.baselineDate = fmt(today);
+  state.threshold = 200;
+
+  state.entries = [
+    { id:uuid(), type:'income',  label:'Main Job Paycheck',  amount:2400.00, date:fmt(nextFriday),   recur:'recurring', freq:'biweekly',  endDate:null, category:null,             notes:'After taxes' },
+    { id:uuid(), type:'income',  label:'Freelance Side Work', amount:350.00,  date:fmt(mid),          recur:'one-time',  freq:null,        endDate:null, category:null,             notes:null },
+    { id:uuid(), type:'expense', label:'Rent',               amount:1350.00, date:fmt(nextMonth1st), recur:'recurring', freq:'monthly',   endDate:null, category:'Housing',        notes:null },
+    { id:uuid(), type:'expense', label:'Netflix',            amount:17.99,   date:nextDayOfMonth(12),recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:null },
+    { id:uuid(), type:'expense', label:'Spotify',            amount:11.99,   date:nextDayOfMonth(8), recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:null },
+    { id:uuid(), type:'expense', label:'Phone Bill',         amount:85.00,   date:nextDayOfMonth(20),recur:'recurring', freq:'monthly',   endDate:null, category:'Subscriptions',  notes:'T-Mobile' },
+    { id:uuid(), type:'expense', label:'Car Insurance',      amount:142.00,  date:nextDayOfMonth(5), recur:'recurring', freq:'monthly',   endDate:null, category:'Transport',      notes:null },
+    { id:uuid(), type:'expense', label:'Gas',                amount:60.00,   date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Transport',      notes:'Estimated' },
+    { id:uuid(), type:'expense', label:'Groceries',          amount:120.00,  date:fmt(nextFriday),   recur:'recurring', freq:'biweekly', endDate:null, category:'Food',           notes:'Estimated' },
+    { id:uuid(), type:'expense', label:'Birthday Dinner',    amount:95.00,   date:daysOut(10),        recur:'one-time',  freq:null,        endDate:null, category:'Entertainment',  notes:null },
+  ];
+
+  saveState();
+  render();
+}
+</script>
+</body>
+</html>
