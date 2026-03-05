@@ -772,6 +772,9 @@ select option { background: var(--bg2); }
       <div class="settings-section-title">Export</div>
       <button onclick="exportCSV()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📤 Export as CSV (spreadsheet)</button>
 
+      <div class="settings-section-title">Diagnostics</div>
+      <button onclick="openDiag()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(0,144,255,0.08);color:var(--accent2);border:1px solid rgba(0,144,255,0.2);font-size:13px;">🔍 Storage Diagnostics</button>
+
       <div class="settings-section-title">Danger Zone</div>
       <button onclick="clearAllData()" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(255,77,109,0.08);color:var(--danger);border:1px solid rgba(255,77,109,0.2);font-size:13px;">🗑 Clear All Data</button>
       <button class="submit-btn income" style="margin-top:4px;" onclick="saveSettings()">Save Settings</button>
@@ -1636,6 +1639,198 @@ async function boot() {
   render();
 }
 
+// ── DIAGNOSTICS ─────────────────────────────────────────────────────────
+let diagLog = [];
+
+function diagLine(msg, ok) {
+  const ts = new Date().toLocaleTimeString();
+  const icon = ok === true ? '✓' : ok === false ? '✗' : '·';
+  const line = `[${ts}] ${icon} ${msg}`;
+  diagLog.push(line);
+  const el = document.getElementById('diag-log');
+  if (el) { el.textContent = diagLog.join('\n'); el.scrollTop = el.scrollTop = 9999; }
+  console.log(line);
+}
+
+function diagCard(id, label, value, ok) {
+  const color = ok === true ? 'var(--green)' : ok === false ? 'var(--danger)' : 'var(--warn)';
+  const grid = document.getElementById('diag-grid');
+  if (!grid) return;
+  let card = document.getElementById('diag-card-' + id);
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'diag-card-' + id;
+    card.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;';
+    grid.appendChild(card);
+  }
+  card.innerHTML = `<div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text2);margin-bottom:4px;">${label}</div>
+    <div style="font-size:13px;font-weight:700;color:${color};">${value}</div>`;
+}
+
+async function runDiag() {
+  diagLog = [];
+  const el = document.getElementById('diag-log');
+  if (el) el.textContent = '';
+  const grid = document.getElementById('diag-grid');
+  if (grid) grid.innerHTML = '';
+
+  diagLine('=== PocketLedger Storage Diagnostics ===');
+  diagLine('App version: ' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'unknown'));
+  diagLine('URL: ' + window.location.href);
+  diagLine('Protocol: ' + window.location.protocol);
+  diagLine('User agent: ' + navigator.userAgent.substring(0, 80));
+
+  // ── 1. Protocol check ──
+  const isHttps = window.location.protocol === 'https:';
+  diagCard('protocol', 'Protocol', window.location.protocol, isHttps);
+  diagLine('Protocol is HTTPS: ' + isHttps, isHttps);
+
+  // ── 2. localStorage check ──
+  try {
+    const testKey = '_pl_diag_test';
+    localStorage.setItem(testKey, '1');
+    const val = localStorage.getItem(testKey);
+    localStorage.removeItem(testKey);
+    const lsWorks = val === '1';
+    diagCard('ls', 'localStorage', lsWorks ? 'Working' : 'BROKEN', lsWorks);
+    diagLine('localStorage read/write: ' + (lsWorks ? 'OK' : 'FAILED'), lsWorks);
+
+    // Check if actual data is in localStorage
+    const lsData = localStorage.getItem('pocketledger_v1');
+    if (lsData) {
+      const parsed = JSON.parse(lsData);
+      const count = parsed.entries ? parsed.entries.length : 0;
+      diagLine(`localStorage has data: ${count} entries, balance $${parsed.baseline || 0}`, count > 0);
+      diagCard('ls-data', 'LS Data', count + ' entries', count > 0);
+    } else {
+      diagLine('localStorage: NO pocketledger_v1 key found', false);
+      diagCard('ls-data', 'LS Data', 'EMPTY', false);
+    }
+  } catch(e) {
+    diagLine('localStorage ERROR: ' + e.message, false);
+    diagCard('ls', 'localStorage', 'ERROR', false);
+  }
+
+  // ── 3. IndexedDB check ──
+  try {
+    const database = await openDB();
+    const tx = database.transaction(DB_STORE, 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const idbData = await new Promise((res, rej) => {
+      const req = store.get(DB_KEY);
+      req.onsuccess = () => res(req.result);
+      req.onerror   = () => rej(req.error);
+    });
+    if (idbData) {
+      const count = idbData.entries ? idbData.entries.length : 0;
+      diagLine(`IndexedDB has data: ${count} entries, balance $${idbData.baseline || 0}`, count > 0);
+      diagCard('idb', 'IndexedDB', count + ' entries', count > 0);
+    } else {
+      diagLine('IndexedDB: database open but NO data found', false);
+      diagCard('idb', 'IndexedDB', 'EMPTY', false);
+    }
+  } catch(e) {
+    diagLine('IndexedDB ERROR: ' + e.message, false);
+    diagCard('idb', 'IndexedDB', 'ERROR', false);
+  }
+
+  // ── 4. In-memory state check ──
+  const memCount = state.entries ? state.entries.length : 0;
+  diagLine(`In-memory state: ${memCount} entries, balance $${state.baseline || 0}`, memCount > 0);
+  diagCard('mem', 'Memory State', memCount + ' entries', memCount > 0);
+
+  // ── 5. Persistent storage status ──
+  if (navigator.storage && navigator.storage.persisted) {
+    try {
+      const persisted = await navigator.storage.persisted();
+      diagCard('persist', 'Persistent', persisted ? 'GRANTED ✓' : 'NOT GRANTED', persisted);
+      diagLine('storage.persisted(): ' + persisted, persisted);
+      if (!persisted) {
+        diagLine('  → Attempting to request persistence now...', null);
+        const granted = await navigator.storage.persist();
+        diagLine('  → persist() request result: ' + granted, granted);
+        diagCard('persist', 'Persistent', granted ? 'GRANTED ✓' : 'DENIED ✗', granted);
+      }
+    } catch(e) {
+      diagLine('storage.persisted() ERROR: ' + e.message, false);
+      diagCard('persist', 'Persistent', 'ERROR', false);
+    }
+  } else {
+    diagLine('navigator.storage.persist NOT supported in this browser', false);
+    diagCard('persist', 'Persistent', 'Not Supported', false);
+  }
+
+  // ── 6. Storage quota ──
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      const usedKB = Math.round((est.usage || 0) / 1024);
+      const quotaMB = Math.round((est.quota || 0) / 1024 / 1024);
+      diagLine(`Storage quota: ${usedKB} KB used of ${quotaMB} MB`, true);
+      diagCard('quota', 'Quota', `${usedKB}KB / ${quotaMB}MB`, true);
+    } catch(e) {
+      diagLine('storage.estimate() ERROR: ' + e.message, false);
+    }
+  }
+
+  // ── 7. Service Worker ──
+  if ('serviceWorker' in navigator) {
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+    const swActive = !!(reg && reg.active);
+    diagCard('sw', 'Service Worker', swActive ? 'Active ✓' : 'Not Active', swActive);
+    diagLine('Service Worker active: ' + swActive, swActive);
+    if (reg) diagLine('SW scope: ' + reg.scope, null);
+  } else {
+    diagLine('Service Worker: not supported', false);
+    diagCard('sw', 'Service Worker', 'Not Supported', false);
+  }
+
+  // ── 8. PWA install state ──
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  diagCard('pwa', 'PWA Mode', isStandalone ? 'Installed ✓' : 'Browser Tab', isStandalone);
+  diagLine('Running as installed PWA: ' + isStandalone, isStandalone);
+
+  diagLine('=== Diagnostics complete ===');
+}
+
+async function diagForceSave() {
+  diagLine('--- Force saving state to all storage layers ---');
+  try {
+    await saveState();
+    diagLine('saveState() completed — check IndexedDB and localStorage rows above', true);
+    await runDiag();
+  } catch(e) {
+    diagLine('Force save ERROR: ' + e.message, false);
+  }
+}
+
+function diagCopyLog() {
+  const text = diagLog.join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => alert('Log copied to clipboard! You can paste it to share for help.'))
+    .catch(() => {
+      // Fallback for devices that block clipboard
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      alert('Log copied!');
+    });
+}
+
+function openDiag() {
+  document.getElementById('diag-modal').classList.add('open');
+  closeSettingsModal();
+  runDiag();
+}
+
+function closeDiag() {
+  document.getElementById('diag-modal').classList.remove('open');
+}
+
 boot();
 
 // ── PERSISTENT STORAGE REQUEST ─────────────────────────────────────────
@@ -1741,5 +1936,30 @@ self.addEventListener('fetch', e => {
     });
 }
 </script>
+
+<!-- ══ DIAGNOSTICS MODAL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="diag-modal" onclick="closeDiag()">
+  <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:92vh;">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">🔍 Storage Diagnostics</span>
+      <button class="modal-close" onclick="closeDiag()">✕</button>
+    </div>
+    <div class="modal-body" style="gap:10px;">
+
+      <!-- Live status grid -->
+      <div id="diag-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+
+      <!-- Log -->
+      <div class="settings-section-title" style="margin-top:4px;">Live Log</div>
+      <div id="diag-log" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-size:11px;font-family:var(--font-m);color:var(--text2);max-height:260px;overflow-y:auto;line-height:1.7;white-space:pre-wrap;"></div>
+
+      <!-- Actions -->
+      <button onclick="runDiag()" style="width:100%;padding:10px;border-radius:var(--r-sm);background:rgba(0,144,255,0.1);color:var(--accent2);border:1px solid rgba(0,144,255,0.25);font-size:13px;">↺ Re-run Diagnostics</button>
+      <button onclick="diagForceSave()" style="width:100%;padding:10px;border-radius:var(--r-sm);background:rgba(0,229,160,0.08);color:var(--accent);border:1px solid rgba(0,229,160,0.2);font-size:13px;">💾 Force Write to All Storage</button>
+      <button onclick="diagCopyLog()" style="width:100%;padding:10px;border-radius:var(--r-sm);background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:13px;">📋 Copy Log to Clipboard</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
