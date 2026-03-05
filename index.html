@@ -454,7 +454,124 @@ select option { background: var(--bg2); }
 /* Z Fold 7 full inner width */
 @media (min-width: 884px) {
   .inner-body { grid-template-columns: 340px 1fr; }
+
 }
+
+/* ════════════════════════════════════════════════════════════════
+   GRAPH STYLES
+════════════════════════════════════════════════════════════════ */
+.graph-controls {
+  display:flex; align-items:center; gap:10px; margin-bottom:20px;
+  flex-wrap:wrap; padding:14px 16px;
+  background:var(--surface); border-radius:var(--r); border:1px solid var(--border);
+}
+.graph-controls label { font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--text2); white-space:nowrap; }
+.graph-controls input[type=number] { width:72px; padding:7px 10px; font-size:13px; }
+.graph-apply-btn {
+  padding:8px 16px; border-radius:var(--r-sm);
+  background:rgba(0,229,160,0.1); color:var(--accent);
+  border:1px solid rgba(0,229,160,0.2); font-size:12px; cursor:pointer; transition:background .15s;
+}
+.graph-apply-btn:active { background:rgba(0,229,160,0.2); }
+.graph-wrap { position:relative; width:100%; }
+.graph-svg  { width:100%; display:block; overflow:visible; }
+.graph-tooltip {
+  position:absolute; background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:10px 14px; font-size:11px; pointer-events:none;
+  opacity:0; transition:opacity .15s; z-index:20; white-space:nowrap;
+  box-shadow:0 4px 20px rgba(0,0,0,.4);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CALENDAR STYLES
+════════════════════════════════════════════════════════════════ */
+.cal-outer { display:flex; flex-direction:column; height:100%; min-height:0; }
+.cal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:4px 0 16px; flex-shrink:0;
+}
+.cal-month-label {
+  font-family:var(--font-h); font-size:20px; font-weight:800;
+  letter-spacing:-0.02em; color:var(--text);
+}
+.cal-nav-btn {
+  width:40px; height:40px; border-radius:50%;
+  background:var(--surface); border:1px solid var(--border);
+  color:var(--text2); font-size:22px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:all .15s; flex-shrink:0;
+}
+.cal-nav-btn:active { background:var(--bg3); color:var(--accent); }
+.cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:3px; flex-shrink:0; }
+.cal-weekday { text-align:center; font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text3); padding:4px 0; font-weight:600; }
+.cal-weekday.weekend { color:rgba(0,229,160,0.5); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; flex:1; }
+.cal-cell {
+  border-radius:10px; padding:6px 5px 5px;
+  background:var(--surface); border:1px solid transparent;
+  cursor:pointer; transition:all .15s;
+  display:flex; flex-direction:column; align-items:center;
+  min-height:56px; position:relative; overflow:hidden;
+}
+.cal-cell:active { transform:scale(0.95); }
+.cal-cell.other-month { background:transparent; border-color:transparent; opacity:0.25; cursor:default; }
+.cal-cell.today { border-color:var(--accent) !important; background:rgba(0,229,160,0.07) !important; }
+.cal-cell.today .cal-day-num { color:var(--accent); font-weight:800; }
+.cal-cell.net-positive { background:rgba(0,229,160,0.06); border-color:rgba(0,229,160,0.15); }
+.cal-cell.net-negative { background:rgba(255,77,109,0.06); border-color:rgba(255,77,109,0.15); }
+.cal-cell:hover:not(.other-month) { border-color:var(--accent); }
+.cal-day-num { font-family:var(--font-h); font-size:13px; font-weight:700; color:var(--text); line-height:1; margin-bottom:3px; align-self:flex-start; }
+.cal-amount { font-size:8px; font-weight:700; line-height:1; padding:2px 4px; border-radius:4px; margin-bottom:3px; }
+.cal-amount.pos { color:var(--green); background:rgba(0,229,160,0.12); }
+.cal-amount.neg { color:var(--red);   background:rgba(255,77,109,0.12); }
+.cal-bars { display:flex; gap:2px; align-items:flex-end; width:100%; justify-content:center; flex:1; }
+.cal-bar  { width:6px; border-radius:2px 2px 0 0; min-height:3px; }
+.cal-bar.income  { background:var(--green); }
+.cal-bar.expense { background:var(--red); }
+.cal-legend { display:flex; gap:16px; padding:12px 0 0; flex-shrink:0; }
+.cal-legend-item { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--text2); }
+.cal-legend-dot  { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* ════════════════════════════════════════════════════════════════
+   DAY DETAIL & OCCURRENCE MODAL
+════════════════════════════════════════════════════════════════ */
+.day-detail-list { display:flex; flex-direction:column; gap:8px; }
+.day-detail-item {
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  background:var(--bg3); border-radius:12px; border:1px solid var(--border);
+  cursor:pointer; transition:all .12s;
+}
+.day-detail-item:active { background:var(--surface); border-color:var(--accent); }
+.day-detail-icon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.day-detail-info { flex:1; min-width:0; }
+.day-detail-name { font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.day-detail-meta { font-size:10px; color:var(--text2); margin-top:3px; }
+.day-detail-amount { font-family:var(--font-h); font-size:16px; font-weight:700; flex-shrink:0; }
+.day-detail-recur { font-size:9px; background:rgba(0,229,160,0.1); color:var(--accent); padding:2px 7px; border-radius:10px; margin-left:6px; }
+.day-balance-card {
+  padding:14px 16px; background:var(--bg3); border-radius:12px;
+  border:1px solid var(--border); display:flex; justify-content:space-between;
+  align-items:center; margin-top:6px;
+}
+.day-balance-label { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text2); }
+.day-balance-val   { font-family:var(--font-h); font-size:22px; font-weight:800; }
+.day-add-btn {
+  width:100%; padding:12px; border-radius:12px; margin-top:8px;
+  background:rgba(0,229,160,0.07); color:var(--accent);
+  border:1px solid rgba(0,229,160,0.2); font-size:13px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  cursor:pointer; transition:background .15s;
+}
+.day-add-btn:active { background:rgba(0,229,160,0.15); }
+.occ-choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.occ-choice-btn {
+  padding:14px 10px; border-radius:12px; border:1px solid var(--border);
+  background:var(--bg3); cursor:pointer; transition:all .15s;
+  text-align:center; display:flex; flex-direction:column; align-items:center; gap:4px;
+}
+.occ-choice-btn:active { border-color:var(--accent); background:rgba(0,229,160,0.07); }
+.occ-icon  { font-size:22px; }
+.occ-title { font-size:12px; color:var(--text); font-weight:600; }
+.occ-sub   { font-size:10px; color:var(--text2); }
 </style>
 </head>
 <body>
@@ -1407,12 +1524,12 @@ function renderCalendar(container) {
   if (calYear  === undefined) calYear  = now.getFullYear();
   if (calMonth === undefined) calMonth = now.getMonth();
 
-  // Build day map for the displayed month
   const firstDay = new Date(calYear, calMonth, 1);
   const lastDay  = new Date(calYear, calMonth + 1, 0);
   const fromStr  = firstDay.toISOString().split('T')[0];
   const toStr    = lastDay.toISOString().split('T')[0];
   const events   = buildTimeline(fromStr, toStr);
+  const todayStr = now.toISOString().split('T')[0];
 
   // Group events by date
   const dayMap = {};
@@ -1421,54 +1538,92 @@ function renderCalendar(container) {
     dayMap[ev.date].push(ev);
   }
 
-  const todayStr = now.toISOString().split('T')[0];
-  const monthLabel = firstDay.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  // Compute max absolute net for bar scaling
+  let maxAbs = 0;
+  for (const ds in dayMap) {
+    let net = 0;
+    for (const ev of dayMap[ds]) net += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
+    if (Math.abs(net) > maxAbs) maxAbs = Math.abs(net);
+  }
+  if (maxAbs === 0) maxAbs = 1;
 
-  // Grid: start from Sunday of the week containing day 1
-  const startOffset = firstDay.getDay(); // 0=Sun
+  // Build grid cells (start Sunday)
+  const startOffset = firstDay.getDay();
   const cells = [];
   for (let i = 0; i < startOffset; i++) {
     const d = new Date(firstDay); d.setDate(d.getDate() - (startOffset - i));
     cells.push({ date: d, thisMonth: false });
   }
-  for (let d = 1; d <= lastDay.getDate(); d++) cells.push({ date: new Date(calYear, calMonth, d), thisMonth: true });
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    cells.push({ date: new Date(calYear, calMonth, d), thisMonth: true });
+  }
   while (cells.length % 7 !== 0) {
-    const d = new Date(lastDay); d.setDate(lastDay.getDate() + (cells.length - lastDay.getDate() - startOffset + 1));
+    const last = cells[cells.length - 1].date;
+    const d = new Date(last); d.setDate(last.getDate() + 1);
     cells.push({ date: d, thisMonth: false });
   }
+
+  const monthLabel = firstDay.toLocaleDateString('en-US', { month:'long', year:'numeric' });
 
   const cellsHtml = cells.map(({ date, thisMonth }) => {
     const ds = date.toISOString().split('T')[0];
     const evts = dayMap[ds] || [];
     const isToday = ds === todayStr;
-    let netCls = '';
-    let net = 0;
-    let inDots = 0, outDots = 0;
+    let incTotal = 0, expTotal = 0;
     for (const ev of evts) {
-      if (ev.entry.type === 'income') { net += ev.entry.amount; inDots++; }
-      else { net -= ev.entry.amount; outDots++; }
+      if (ev.entry.type === 'income') incTotal += ev.entry.amount;
+      else expTotal += ev.entry.amount;
     }
-    if (evts.length) netCls = net >= 0 ? 'net-positive' : 'net-negative';
-    const dots = [
-      ...Array(Math.min(inDots, 3)).fill('<div class="cal-dot income"></div>'),
-      ...Array(Math.min(outDots, 3)).fill('<div class="cal-dot expense"></div>'),
-    ].join('');
-    const netLbl = evts.length ? `<div class="cal-net ${net>=0?'pos':'neg'}">${net>=0?'+':''}${Math.round(Math.abs(net))}</div>` : '';
-    return `<div class="cal-cell ${isToday?'today':''} ${thisMonth?'':'other-month'} ${netCls}" onclick="openDayModal('${ds}')">
+    const net = incTotal - expTotal;
+    const hasActivity = evts.length > 0;
+    const netCls = hasActivity ? (net >= 0 ? 'net-positive' : 'net-negative') : '';
+
+    // Mini bar chart: proportional height bars
+    let barsHtml = '';
+    if (hasActivity) {
+      const MAX_H = 18; // max bar height px
+      if (incTotal > 0) {
+        const h = Math.max(3, Math.round((incTotal / maxAbs) * MAX_H));
+        barsHtml += `<div class="cal-bar income" style="height:${h}px"></div>`;
+      }
+      if (expTotal > 0) {
+        const h = Math.max(3, Math.round((expTotal / maxAbs) * MAX_H));
+        barsHtml += `<div class="cal-bar expense" style="height:${h}px"></div>`;
+      }
+    }
+
+    // Net amount label (compact)
+    const amountHtml = hasActivity
+      ? `<div class="cal-amount ${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : ''}${net >= 1000 || net <= -1000 ? (net/1000).toFixed(1)+'k' : Math.round(Math.abs(net))}</div>`
+      : '';
+
+    return `<div class="cal-cell${isToday ? ' today' : ''}${!thisMonth ? ' other-month' : ''}${netCls ? ' '+netCls : ''}" onclick="${thisMonth ? `openDayModal('${ds}')` : ''}">
       <div class="cal-day-num">${date.getDate()}</div>
-      <div class="cal-dots">${dots}</div>
-      ${netLbl}
+      ${amountHtml}
+      <div class="cal-bars">${barsHtml}</div>
     </div>`;
   }).join('');
 
+  const weekdays = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const weekdaysHtml = weekdays.map((d,i) =>
+    `<div class="cal-weekday${i===0||i===6?' weekend':''}">${d}</div>`
+  ).join('');
+
   container.innerHTML = `
-    <div class="cal-header">
-      <button class="cal-nav" onclick="calNav(-1)">‹</button>
-      <div class="cal-month-label">${monthLabel}</div>
-      <button class="cal-nav" onclick="calNav(1)">›</button>
+    <div class="cal-outer">
+      <div class="cal-header">
+        <button class="cal-nav-btn" onclick="calNav(-1)">‹</button>
+        <div class="cal-month-label">${monthLabel}</div>
+        <button class="cal-nav-btn" onclick="calNav(1)">›</button>
+      </div>
+      <div class="cal-weekdays">${weekdaysHtml}</div>
+      <div class="cal-grid">${cellsHtml}</div>
+      <div class="cal-legend">
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--green)"></div> Income</div>
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--red)"></div> Expense</div>
+        <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--accent);border:2px solid var(--accent);border-radius:3px;width:8px;height:8px;"></div> Today</div>
+      </div>
     </div>
-    <div class="cal-weekdays">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<div class="cal-weekday">${d}</div>`).join('')}</div>
-    <div class="cal-grid">${cellsHtml}</div>
   `;
 }
 
@@ -1486,41 +1641,54 @@ let currentOccurrenceEntry = null;
 function openDayModal(dateStr) {
   currentDayStr = dateStr;
   const d = new Date(dateStr + 'T12:00:00');
-  document.getElementById('day-modal-title').textContent = d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  document.getElementById('day-modal-title').textContent =
+    d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
 
   const events = buildTimeline(dateStr, dateStr);
   const runningBal = projectBalance(dateStr);
-
   const icons = { Bills:'💡', Housing:'🏠', Food:'🍔', Transport:'🚗', Subscriptions:'📱', Healthcare:'🏥', Entertainment:'🎬', Other:'📦' };
 
-  let bodyHtml = '<div class="day-detail-list">';
+  let listHtml = '';
   if (!events.length) {
-    bodyHtml += '<div style="text-align:center;padding:32px 0;color:var(--text2);font-size:13px;">No transactions on this day</div>';
+    listHtml = `<div style="text-align:center;padding:36px 0 24px;color:var(--text2);font-size:13px;">
+      <div style="font-size:32px;margin-bottom:10px;opacity:.4;">📅</div>
+      No transactions on this day
+    </div>`;
   } else {
     for (const ev of events) {
-      const sign = ev.entry.type === 'income' ? '+' : '-';
-      const color = ev.entry.type === 'income' ? 'var(--green)' : 'var(--red)';
-      const icon = ev.entry.type === 'income' ? '📈' : (icons[ev.entry.category] || '📦');
-      const recurBadge = ev.entry.recur === 'recurring' ? `<span style="font-size:9px;background:rgba(0,229,160,0.1);color:var(--accent);padding:2px 6px;border-radius:10px;margin-left:6px;">🔄 ${ev.entry.freq}</span>` : '';
-      bodyHtml += `<div class="day-detail-item" onclick="openOccurrenceModal('${ev.entry.id}', '${dateStr}')">
-        <div class="day-detail-icon" style="background:${ev.entry.type==='income'?'rgba(0,229,160,0.1)':'rgba(255,77,109,0.1)'};">${icon}</div>
-        <div class="day-detail-info">
-          <div class="day-detail-name">${ev.entry.label}${recurBadge}</div>
-          <div class="day-detail-sub">${ev.entry.category || (ev.entry.type==='income'?'Income':'Expense')}${ev.entry.notes ? ' · ' + ev.entry.notes : ''}</div>
-        </div>
-        <div class="day-detail-amount" style="color:${color};">${sign}${formatMoney(ev.entry.amount)}</div>
-      </div>`;
+      const isIncome = ev.entry.type === 'income';
+      const sign  = isIncome ? '+' : '-';
+      const color = isIncome ? 'var(--green)' : 'var(--red)';
+      const iconBg = isIncome ? 'rgba(0,229,160,0.12)' : 'rgba(255,77,109,0.12)';
+      const icon  = isIncome ? '📈' : (icons[ev.entry.category] || '📦');
+      const recurBadge = ev.entry.recur === 'recurring'
+        ? `<span class="day-detail-recur">🔄 ${ev.entry.freq}</span>` : '';
+      const meta = [ev.entry.category || (isIncome ? 'Income' : 'Expense'), ev.entry.notes].filter(Boolean).join(' · ');
+      listHtml += `
+        <div class="day-detail-item" onclick="openOccurrenceModal('${ev.entry.id}','${dateStr}')">
+          <div class="day-detail-icon" style="background:${iconBg}">${icon}</div>
+          <div class="day-detail-info">
+            <div class="day-detail-name">${ev.entry.label}${recurBadge}</div>
+            <div class="day-detail-meta">${meta}</div>
+          </div>
+          <div class="day-detail-amount" style="color:${color}">${sign}${formatMoney(ev.entry.amount)}</div>
+        </div>`;
     }
   }
-  bodyHtml += '</div>';
 
-  // Running balance after this day
-  bodyHtml += `<div class="day-running">
-    <div><div class="day-running-label">Balance after this day</div></div>
-    <div class="day-running-val" style="color:${runningBal>=0?'var(--accent)':'var(--danger)'};">${formatMoney(runningBal)}</div>
-  </div>`;
-
-  bodyHtml += `<button onclick="openAddModalForDate('${dateStr}')" style="width:100%;padding:11px;border-radius:var(--r-sm);background:rgba(0,229,160,0.08);color:var(--accent);border:1px solid rgba(0,229,160,0.2);font-size:13px;margin-top:4px;">+ Add transaction on this day</button>`;
+  const bodyHtml = `
+    <div class="day-detail-list">${listHtml}</div>
+    <div class="day-balance-card">
+      <div>
+        <div class="day-balance-label">Balance after this day</div>
+      </div>
+      <div class="day-balance-val" style="color:${runningBal >= 0 ? 'var(--accent)' : 'var(--danger)'}">
+        ${formatMoney(runningBal)}
+      </div>
+    </div>
+    <button class="day-add-btn" onclick="openAddModalForDate('${dateStr}')">
+      <span style="font-size:18px;">＋</span> Add transaction on this day
+    </button>`;
 
   document.getElementById('day-modal-body').innerHTML = bodyHtml;
   document.getElementById('day-modal').classList.add('open');
@@ -1551,13 +1719,13 @@ function openOccurrenceModal(entryId, dateStr) {
   document.getElementById('occ-notes').value  = entry.notes || '';
 
   // For one-time entries, only "all" makes sense — relabel
-  const choiceEl = document.querySelector('.occurrence-choice');
+  const choiceEl = document.getElementById('occ-choice-grid');
   if (entry.recur === 'one-time') {
-    choiceEl.innerHTML = `<button class="occurrence-btn" style="grid-column:1/-1;" onclick="saveOccurrence('all')">💾 Save Changes</button>`;
+    choiceEl.innerHTML = `<button class="occ-choice-btn" style="grid-column:1/-1;" onclick="saveOccurrence('all')"><span class="occ-icon">💾</span><span class="occ-title">Save Changes</span></button>`;
   } else {
     choiceEl.innerHTML = `
-      <button class="occurrence-btn" onclick="saveOccurrence('single')">📌 This occurrence only<br><span style="color:var(--text2);font-size:10px;">Just ${formatDateShort(dateStr)}</span></button>
-      <button class="occurrence-btn" onclick="saveOccurrence('all')">🔄 All recurring<br><span style="color:var(--text2);font-size:10px;">Update every instance</span></button>`;
+      <button class="occ-choice-btn" onclick="saveOccurrence('single')"><span class="occ-icon">📌</span><span class="occ-title">This date only</span><span class="occ-sub">${formatDateShort(dateStr)}</span></button>
+      <button class="occ-choice-btn" onclick="saveOccurrence('all')"><span class="occ-icon">🔄</span><span class="occ-title">All recurring</span><span class="occ-sub">Every instance</span></button>`;
   }
 
   document.getElementById('day-modal').classList.remove('open');
@@ -2219,7 +2387,7 @@ async function requestPersistentStorage() {
 // ── SERVICE WORKER ──────────────────────────────────────────────────────
 // sw.js lives at repo root alongside index.html on GitHub Pages.
 // When you update the app, bump APP_VERSION in BOTH index.html and sw.js.
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.1.0';
 
 if ('serviceWorker' in navigator) {
   // Derive sw.js URL from current page location so it works in any
