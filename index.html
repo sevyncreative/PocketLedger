@@ -632,11 +632,15 @@ select option { background: var(--bg2); }
 
   <!-- Bottom Nav -->
   <div class="outer-bottom-nav">
-    <button class="outer-nav-btn active" onclick="outerTab('timeline')">
+    <button class="outer-nav-btn active" id="outer-tab-timeline" onclick="outerTab('timeline',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
       Timeline
     </button>
-    <button class="outer-nav-btn" onclick="outerTab('lookup')">
+    <button class="outer-nav-btn" id="outer-tab-calendar" onclick="outerTab('calendar',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Calendar
+    </button>
+    <button class="outer-nav-btn" id="outer-tab-lookup" onclick="outerTab('lookup',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       Lookup
     </button>
@@ -660,6 +664,11 @@ select option { background: var(--bg2); }
       <div class="pr-date" id="outer-lookup-result-date"></div>
       <div class="pr-amount" id="outer-lookup-result-val"></div>
     </div>
+  </div>
+
+  <!-- Outer Calendar Panel (hidden by default) -->
+  <div id="outer-calendar-panel" style="display:none; padding:12px; flex:1; flex-direction:column; overflow-y:auto;">
+    <div id="outer-calendar-content"></div>
   </div>
 
 </div><!-- /outer-layout -->
@@ -1049,7 +1058,13 @@ function buildTimeline(fromDate, toDate) {
       const ov = overrides.find(o => o.entryId === entry.id && o.date === date);
       if (ov && ov.skip) continue; // skipped occurrence
       if (ov) {
-        events.push({ date, entry: { ...entry, amount: ov.amount ?? entry.amount, label: ov.label ?? entry.label, notes: ov.notes ?? entry.notes } });
+        events.push({ date, entry: {
+          ...entry,
+          amount:   ov.amount   ?? entry.amount,
+          label:    ov.label    ?? entry.label,
+          notes:    ov.notes    ?? entry.notes,
+          category: ov.category ?? entry.category,
+        }});
       } else {
         events.push({ date, entry });
       }
@@ -1717,6 +1732,14 @@ function openOccurrenceModal(entryId, dateStr) {
   document.getElementById('occ-amount').value = entry.amount;
   document.getElementById('occ-label').value  = entry.label;
   document.getElementById('occ-notes').value  = entry.notes || '';
+  // Show category for expenses
+  const catRow = document.getElementById('occ-category-row');
+  if (entry.type === 'expense') {
+    catRow.style.display = 'flex';
+    document.getElementById('occ-category').value = entry.category || 'Other';
+  } else {
+    catRow.style.display = 'none';
+  }
 
   // For one-time entries, only "all" makes sense — relabel
   const choiceEl = document.getElementById('occ-choice-grid');
@@ -1740,29 +1763,30 @@ async function saveOccurrence(mode) {
   const entry = currentOccurrenceEntry;
   if (!entry) return;
 
-  const newAmount = parseFloat(document.getElementById('occ-amount').value);
-  const newLabel  = document.getElementById('occ-label').value.trim();
-  const newNotes  = document.getElementById('occ-notes').value.trim();
+  const newAmount   = parseFloat(document.getElementById('occ-amount').value);
+  const newLabel    = document.getElementById('occ-label').value.trim();
+  const newNotes    = document.getElementById('occ-notes').value.trim();
+  const catRow      = document.getElementById('occ-category-row');
+  const newCategory = (catRow.style.display !== 'none')
+    ? document.getElementById('occ-category').value
+    : entry.category;
 
   if (isNaN(newAmount) || newAmount <= 0) { alert('Enter a valid amount.'); return; }
+  if (!newLabel) { alert('Label cannot be empty.'); return; }
 
   if (mode === 'all') {
-    // Update the master entry
     const idx = state.entries.findIndex(e => e.id === entry.id);
-    state.entries[idx] = { ...entry, amount: newAmount, label: newLabel, notes: newNotes || null };
-    // Remove any single-occurrence overrides for this entry
+    state.entries[idx] = { ...entry, amount: newAmount, label: newLabel, notes: newNotes || null, category: newCategory };
     state.overrides = (state.overrides || []).filter(o => o.entryId !== entry.id);
 
   } else if (mode === 'single') {
-    // Store a date-specific override, don't touch master entry
     if (!state.overrides) state.overrides = [];
     const existing = state.overrides.findIndex(o => o.entryId === entry.id && o.date === occurrenceTargetDate);
-    const override = { entryId: entry.id, date: occurrenceTargetDate, amount: newAmount, label: newLabel, notes: newNotes || null };
+    const override = { entryId: entry.id, date: occurrenceTargetDate, amount: newAmount, label: newLabel, notes: newNotes || null, category: newCategory };
     if (existing >= 0) state.overrides[existing] = override;
     else state.overrides.push(override);
 
   } else if (mode === 'delete-single') {
-    // Skip this occurrence by marking it deleted
     if (!state.overrides) state.overrides = [];
     const existing = state.overrides.findIndex(o => o.entryId === entry.id && o.date === occurrenceTargetDate);
     const override = { entryId: entry.id, date: occurrenceTargetDate, skip: true };
@@ -1773,6 +1797,10 @@ async function saveOccurrence(mode) {
   await saveState();
   closeOccurrenceModal();
   render();
+  // Re-open day modal so user can see updated transactions
+  if (mode !== 'delete-single' || true) {
+    setTimeout(() => openDayModal(occurrenceTargetDate), 150);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1788,19 +1816,21 @@ function innerTab(tab) {
 }
 
 let currentOuterTab = 'timeline';
-function outerTab(tab) {
+function outerTab(tab, btn) {
   currentOuterTab = tab;
   document.querySelectorAll('.outer-nav-btn').forEach(b => b.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  if (btn) btn.classList.add('active');
 
-  const tlPanel = document.querySelector('.outer-timeline');
+  const tlPanel   = document.querySelector('.outer-timeline');
   const lookPanel = document.getElementById('outer-lookup-panel');
-  if (tab === 'timeline') {
-    tlPanel.style.display = '';
-    lookPanel.style.display = 'none';
-  } else {
-    tlPanel.style.display = 'none';
-    lookPanel.style.display = 'flex';
+  const calPanel  = document.getElementById('outer-calendar-panel');
+
+  tlPanel.style.display   = tab === 'timeline'  ? ''     : 'none';
+  lookPanel.style.display = tab === 'lookup'    ? 'flex' : 'none';
+  calPanel.style.display  = tab === 'calendar'  ? 'flex' : 'none';
+
+  if (tab === 'calendar') {
+    renderCalendar(document.getElementById('outer-calendar-content'));
   }
 }
 
@@ -2385,14 +2415,11 @@ async function requestPersistentStorage() {
 }
 
 // ── SERVICE WORKER ──────────────────────────────────────────────────────
-// sw.js lives at repo root alongside index.html on GitHub Pages.
-// When you update the app, bump APP_VERSION in BOTH index.html and sw.js.
-const APP_VERSION = '1.1.0';
+// ── Bump only this when you release an update ──────────────────────────
+const APP_VERSION = '1.1.1';
 
 if ('serviceWorker' in navigator) {
-  // Derive sw.js URL from current page location so it works in any
-  // GitHub Pages subdirectory (e.g. /PocketLedger/sw.js)
-  const swPath = new URL('./sw.js', window.location.href).href;
+  const swPath = new URL('./sw.js?v=' + APP_VERSION, window.location.href).href;
   console.log('[PocketLedger] Registering SW from:', swPath);
 
   navigator.serviceWorker.register(swPath, { scope: new URL('./', window.location.href).pathname })
@@ -2414,6 +2441,88 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+<!-- ══ DAY DETAIL MODAL ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="day-modal" onclick="closeDayModal()">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="day-modal-title">March 5</span>
+      <button class="modal-close" onclick="closeDayModal()">✕</button>
+    </div>
+    <div class="modal-body" id="day-modal-body"></div>
+  </div>
+</div>
+
+<!-- ══ OCCURRENCE EDIT MODAL ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="occurrence-modal" onclick="closeOccurrenceModal()">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">Edit Transaction</span>
+      <button class="modal-close" onclick="closeOccurrenceModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Entry info banner -->
+      <div id="occurrence-entry-info" style="padding:10px 14px;background:var(--bg3);border-radius:var(--r-sm);border:1px solid var(--border);font-size:13px;color:var(--text2);margin-bottom:4px;"></div>
+
+      <!-- Amount -->
+      <div class="form-row">
+        <label class="form-label">Amount ($)</label>
+        <input type="number" id="occ-amount" step="0.01" min="0" placeholder="0.00">
+      </div>
+
+      <!-- Label -->
+      <div class="form-row">
+        <label class="form-label">Label</label>
+        <input type="text" id="occ-label" placeholder="Transaction name">
+      </div>
+
+      <!-- Category (shown for expenses) -->
+      <div class="form-row" id="occ-category-row" style="display:none;">
+        <label class="form-label">Category</label>
+        <select id="occ-category">
+          <option value="Bills">💡 Bills</option>
+          <option value="Housing">🏠 Housing</option>
+          <option value="Food">🍔 Food</option>
+          <option value="Transport">🚗 Transport</option>
+          <option value="Subscriptions">📱 Subscriptions</option>
+          <option value="Healthcare">🏥 Healthcare</option>
+          <option value="Entertainment">🎬 Entertainment</option>
+          <option value="Other">📦 Other</option>
+        </select>
+      </div>
+
+      <!-- Notes -->
+      <div class="form-row">
+        <label class="form-label">Notes (optional)</label>
+        <input type="text" id="occ-notes" placeholder="Optional note">
+      </div>
+
+      <!-- Apply to -->
+      <div class="form-label" style="margin-top:4px;margin-bottom:10px;">Apply change to:</div>
+      <div class="occ-choice-grid" id="occ-choice-grid">
+        <button class="occ-choice-btn" onclick="saveOccurrence('single')">
+          <span class="occ-icon">📌</span>
+          <span class="occ-title">This date only</span>
+          <span class="occ-sub">Just this occurrence</span>
+        </button>
+        <button class="occ-choice-btn" onclick="saveOccurrence('all')">
+          <span class="occ-icon">🔄</span>
+          <span class="occ-title">All recurring</span>
+          <span class="occ-sub">Update every instance</span>
+        </button>
+      </div>
+
+      <!-- Skip this occurrence -->
+      <button class="delete-btn" onclick="saveOccurrence('delete-single')" style="margin-top:8px;width:100%;">
+        🗑 Skip this occurrence
+      </button>
+
+    </div>
+  </div>
+</div>
 
 <!-- ══ DIAGNOSTICS MODAL ══════════════════════════════════════════════ -->
 <div class="modal-overlay" id="diag-modal" onclick="closeDiag()">
