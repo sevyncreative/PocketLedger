@@ -1805,6 +1805,7 @@ function openDayModal(dateStr) {
 
 function closeDayModal() {
   document.getElementById('day-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 function openAddModalForDate(dateStr) {
@@ -1851,6 +1852,7 @@ function openOccurrenceModal(entryId, dateStr) {
 
 function closeOccurrenceModal() {
   document.getElementById('occurrence-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 async function saveOccurrence(mode) {
@@ -2053,6 +2055,7 @@ function deleteEntry() {
 
 function closeAddModal() {
   document.getElementById('add-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2082,6 +2085,7 @@ function saveSettings() {
 
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 function closeModal(event) {
@@ -2569,6 +2573,7 @@ function openDiag() {
 
 function closeDiag() {
   document.getElementById('diag-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 boot();
