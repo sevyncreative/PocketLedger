@@ -648,6 +648,24 @@ select option { background: var(--bg2); }
     </div>
   </div>
 
+  <!-- Outer Lookup Panel (hidden by default) -->
+  <div id="outer-lookup-panel" style="display:none; padding:16px; flex:1; flex-direction:column; gap:14px; overflow-y:auto;">
+    <div class="form-label">What will I have on...</div>
+    <div style="display:flex;gap:8px;">
+      <input type="date" id="outer-lookup-date" style="flex:1;">
+      <button class="proj-btn" onclick="doLookup('outer')">Check</button>
+    </div>
+    <div class="proj-result" id="outer-lookup-result">
+      <div class="pr-date" id="outer-lookup-result-date"></div>
+      <div class="pr-amount" id="outer-lookup-result-val"></div>
+    </div>
+  </div>
+
+  <!-- Outer Calendar Panel (hidden by default) -->
+  <div id="outer-calendar-panel" style="display:none; padding:12px; flex:1; flex-direction:column; overflow-y:auto;">
+    <div id="outer-calendar-content"></div>
+  </div>
+
   <!-- Bottom Nav -->
   <div class="outer-bottom-nav">
     <button class="outer-nav-btn active" id="outer-tab-timeline" onclick="outerTab('timeline',this)">
@@ -670,24 +688,6 @@ select option { background: var(--bg2); }
 
   <!-- Outer FAB -->
   <button class="outer-fab" onclick="openAddModal()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></button>
-
-  <!-- Outer Lookup Panel (hidden by default) -->
-  <div id="outer-lookup-panel" style="display:none; padding:16px; flex:1; flex-direction:column; gap:14px;">
-    <div class="form-label">What will I have on...</div>
-    <div style="display:flex;gap:8px;">
-      <input type="date" id="outer-lookup-date" style="flex:1;">
-      <button class="proj-btn" onclick="doLookup('outer')">Check</button>
-    </div>
-    <div class="proj-result" id="outer-lookup-result">
-      <div class="pr-date" id="outer-lookup-result-date"></div>
-      <div class="pr-amount" id="outer-lookup-result-val"></div>
-    </div>
-  </div>
-
-  <!-- Outer Calendar Panel (hidden by default) -->
-  <div id="outer-calendar-panel" style="display:none; padding:12px; flex:1; flex-direction:column; overflow-y:auto;">
-    <div id="outer-calendar-content"></div>
-  </div>
 
 </div><!-- /outer-layout -->
 
@@ -2520,7 +2520,7 @@ async function requestPersistentStorage() {
 
 // ── SERVICE WORKER ──────────────────────────────────────────────────────
 // ── Bump only this when you release an update ──────────────────────────
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.0.2';
 
 if ('serviceWorker' in navigator) {
   const swPath = new URL('./sw.js?v=' + APP_VERSION, window.location.href).href;
