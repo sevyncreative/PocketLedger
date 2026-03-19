@@ -188,6 +188,22 @@ select option { background: var(--bg2); }
 }
 .inner-topbar .add-btn:active { transform: scale(0.97); }
 
+/* Inner Portrait Bottom Nav (hidden by default, shown in 600-767px) */
+.inner-bottom-nav {
+  display: none; flex-shrink: 0;
+  padding: 8px 16px calc(var(--safe-bot) + 12px);
+  gap: 8px; background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.inner-nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 8px 4px; border-radius: var(--r-sm);
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2);
+  transition: all 0.15s;
+}
+.inner-nav-btn.active { color: var(--accent); background: rgba(0,229,160,0.08); }
+.inner-nav-btn svg { width: 20px; height: 20px; }
+
 /* Inner Two-Panel Body */
 .inner-body {
   display: grid; grid-template-columns: 320px 1fr;
@@ -429,6 +445,77 @@ select option { background: var(--bg2); }
 }
 .delete-btn:active { background: rgba(255,77,109,0.2); }
 
+/* Inline form error */
+.form-error {
+  display: none; padding: 10px 14px; border-radius: var(--r-sm);
+  background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.25);
+  color: var(--danger); font-size: 12px; animation: fadeIn 0.15s ease;
+}
+.form-error.visible { display: block; }
+
+/* Undo toast */
+.undo-toast {
+  position: fixed; bottom: calc(var(--safe-bot) + 80px); left: 50%; transform: translateX(-50%);
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 24px; padding: 10px 18px;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 13px; color: var(--text);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 600; white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+  transition: opacity 0.3s ease;
+}
+.undo-toast.hiding { opacity: 0; }
+.undo-btn {
+  color: var(--accent); font-weight: 700; font-size: 13px;
+  padding: 4px 8px; border-radius: 8px;
+  transition: background 0.15s;
+}
+.undo-btn:active { background: rgba(0,229,160,0.1); }
+
+/* Confirm sheet (replaces confirm()) */
+.confirm-sheet {
+  display: none; position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.75); backdrop-filter: blur(9px);
+  align-items: flex-end; justify-content: center;
+}
+.confirm-sheet.open { display: flex; }
+.confirm-panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r) var(--r) 0 0; width: 100%; max-width: 480px;
+  padding: 24px 20px calc(var(--safe-bot) + 20px);
+  animation: slideUp 0.22s cubic-bezier(0.25,0.8,0.25,1);
+}
+@media (min-width: 768px) {
+  .confirm-sheet { align-items: center; }
+  .confirm-panel { border-radius: var(--r); margin: 20px; }
+}
+.confirm-title { font-family: var(--font-h); font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.confirm-msg { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.5; }
+.confirm-actions { display: flex; gap: 10px; }
+.confirm-cancel {
+  flex: 1; padding: 13px; border-radius: var(--r-sm);
+  background: var(--bg3); color: var(--text); font-size: 14px;
+  border: 1px solid var(--border); transition: background 0.15s;
+}
+.confirm-cancel:active { background: var(--surface); }
+.confirm-ok {
+  flex: 1; padding: 13px; border-radius: var(--r-sm);
+  background: rgba(255,77,109,0.12); color: var(--danger);
+  border: 1px solid rgba(255,77,109,0.25);
+  font-family: var(--font-h); font-size: 14px; font-weight: 700;
+  transition: background 0.15s;
+}
+.confirm-ok:active { background: rgba(255,77,109,0.25); }
+
+/* Baseline warning in balance card */
+.baseline-warn {
+  display: none; margin-top: 8px; padding: 6px 10px; border-radius: 8px;
+  background: rgba(255,184,48,0.1); border: 1px solid rgba(255,184,48,0.25);
+  color: var(--warn); font-size: 11px;
+}
+.baseline-warn.visible { display: block; }
+
 /* Empty state */
 .empty-state { text-align: center; padding: 48px 24px; }
 .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
@@ -485,12 +572,15 @@ select option { background: var(--bg2); }
   /* Reduce right panel content padding */
   .right-panel-content { padding: 16px; }
 
-  /* Compact topbar so it fits in portrait */
+  /* Compact topbar — hide tabs, keep logo + actions */
   .inner-topbar { padding-left: 12px; padding-right: 12px; gap: 6px; }
   .inner-topbar .logo { font-size: 15px; }
-  .inner-topbar .tab-btn { padding: 6px 8px; font-size: 10px; letter-spacing: 0.04em; }
+  .inner-topbar .topbar-center { display: none; }
   .inner-topbar .add-btn span { display: none; }
   .inner-topbar .add-btn { padding: 8px; }
+
+  /* Show bottom nav */
+  .inner-bottom-nav { display: flex; }
 }
 
 /* Two-panel layout (768px+) */
@@ -508,8 +598,8 @@ select option { background: var(--bg2); }
    GRAPH STYLES
 ════════════════════════════════════════════════════════════════ */
 .graph-controls {
-  display:flex; align-items:center; gap:10px; margin-bottom:20px;
-  flex-wrap:wrap; padding:14px 16px;
+  display:flex; align-items:center; gap:8px; margin-bottom:20px;
+  flex-wrap:wrap; padding:12px 14px;
   background:var(--surface); border-radius:var(--r); border:1px solid var(--border);
 }
 .graph-controls label { font-size:10px; text-transform:uppercase; letter-spacing:.12em; color:var(--text2); white-space:nowrap; }
@@ -756,6 +846,7 @@ select option { background: var(--bg2); }
         <div class="bc-label">Current Balance</div>
         <div class="bc-amount positive" id="inner-balance-val">$0.00</div>
         <div class="bc-updated" id="inner-balance-updated">Set your balance in settings</div>
+        <div class="baseline-warn" id="inner-baseline-warn">⚠ Baseline date is in the future — current balance may be inaccurate</div>
       </div>
 
       <!-- Projection Tool -->
@@ -823,7 +914,46 @@ select option { background: var(--bg2); }
 
   </div><!-- /inner-body -->
 
+  <!-- Portrait bottom nav (600-767px only) -->
+  <div class="inner-bottom-nav">
+    <button class="inner-nav-btn active" id="inner-bnav-timeline" onclick="innerTab('timeline')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      Timeline
+    </button>
+    <button class="inner-nav-btn" id="inner-bnav-outlook" onclick="innerTab('outlook')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h2M20 12h2M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/><circle cx="12" cy="12" r="4"/></svg>
+      Outlook
+    </button>
+    <button class="inner-nav-btn" id="inner-bnav-graph" onclick="innerTab('graph')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Graph
+    </button>
+    <button class="inner-nav-btn" id="inner-bnav-calendar" onclick="innerTab('calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Calendar
+    </button>
+  </div>
+
 </div><!-- /inner-layout -->
+
+<!-- Confirm Sheet (replaces confirm()) -->
+<div class="confirm-sheet" id="confirm-sheet">
+  <div class="confirm-panel">
+    <div class="confirm-title" id="confirm-title">Delete Entry?</div>
+    <div class="confirm-msg" id="confirm-msg">This cannot be undone.</div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" id="confirm-cancel">Cancel</button>
+      <button class="confirm-ok" id="confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Undo Toast -->
+<div class="undo-toast" id="undo-toast" style="display:none;">
+  <span id="undo-toast-msg">Entry deleted</span>
+  <button class="undo-btn" onclick="undoDelete()">Undo</button>
+</div>
+
 </div><!-- /app -->
 
 <!-- ══════════════════════════════════════════════════════════════════════
@@ -858,7 +988,7 @@ select option { background: var(--bg2); }
       <!-- Date -->
       <div class="form-row">
         <label class="form-label">Date</label>
-        <input type="date" id="entry-date">
+        <input type="date" id="entry-date" oninput="updateRecurPreview()">
       </div>
       <!-- One-time / Recurring -->
       <div class="recur-toggle">
@@ -869,7 +999,7 @@ select option { background: var(--bg2); }
       <div id="recur-options" style="display:none; flex-direction:column; gap:10px;">
         <div class="form-row">
           <label class="form-label">Frequency</label>
-          <select id="entry-frequency">
+          <select id="entry-frequency" oninput="updateRecurPreview()">
             <option value="weekly">Weekly</option>
             <option value="biweekly" selected>Biweekly (every 2 weeks)</option>
             <option value="semi-monthly">Semi-Monthly (1st & 15th)</option>
@@ -879,8 +1009,9 @@ select option { background: var(--bg2); }
         </div>
         <div class="form-row">
           <label class="form-label">End Date (optional)</label>
-          <input type="date" id="entry-enddate" placeholder="Leave blank = forever">
+          <input type="date" id="entry-enddate" placeholder="Leave blank = forever" oninput="updateRecurPreview()">
         </div>
+        <div id="recur-preview" style="font-size:11px;color:var(--text2);padding:4px 2px;display:none;"></div>
       </div>
       <!-- Category (expenses only) -->
       <div class="form-row" id="category-row" style="display:none;">
@@ -901,6 +1032,8 @@ select option { background: var(--bg2); }
         <label class="form-label">Notes (optional)</label>
         <input type="text" id="entry-notes" placeholder="Optional note">
       </div>
+      <!-- Inline error -->
+      <div class="form-error" id="entry-error"></div>
       <!-- Submit -->
       <button class="submit-btn income" id="submit-btn" onclick="saveEntry()">Add Income</button>
       <button class="delete-btn" id="delete-btn" style="display:none;" onclick="deleteEntry()">🗑 Delete Entry</button>
@@ -1085,6 +1218,7 @@ function getOccurrences(entry, fromDate, toDate) {
   let cur = new Date(start);
   const maxIter = 5000;
   let i = 0;
+  let hitMaxIter = false;
   while (cur <= to && cur <= end && i < maxIter) {
     i++;
     if (cur >= from) occurrences.push(cur.toISOString().split('T')[0]);
@@ -1100,6 +1234,8 @@ function getOccurrences(entry, fromDate, toDate) {
       else { cur.setMonth(cur.getMonth() + 1); cur.setDate(1); }
     }
   }
+  if (i >= maxIter && cur <= to) hitMaxIter = true;
+  if (hitMaxIter) console.warn('PocketLedger: maxIter hit for entry', entry.id, entry.label, '— occurrences may be truncated');
   return occurrences;
 }
 
@@ -1177,7 +1313,7 @@ function getOutlookBalances() {
 
 function findFirstNegative() {
   const today = todayStr();
-  const fut = new Date(); fut.setDate(fut.getDate() + 90);
+  const fut = new Date(); fut.setDate(fut.getDate() + 365);
   const futStr = fut.toISOString().split('T')[0];
   const events = buildTimeline(today, futStr);
   let bal = state.baseline;
@@ -1194,15 +1330,55 @@ function findFirstNegative() {
 // ══════════════════════════════════════════════════════════════════════════
 let currentInnerTab = 'timeline';
 
+// Cached render data — computed once per render() call
+let _renderCache = null;
+
+function getRenderData() {
+  if (_renderCache) return _renderCache;
+  const today = todayStr();
+  const fut365 = new Date(); fut365.setDate(fut365.getDate() + 365);
+  const fut365Str = fut365.toISOString().split('T')[0];
+  const fut30 = new Date(); fut30.setDate(fut30.getDate() + 30);
+  const fut30Str = fut30.toISOString().split('T')[0];
+
+  // Single timeline walk covers everything we need
+  const allEvents = buildTimeline(state.baselineDate || today, fut365Str);
+
+  // Current balance (walk to today)
+  let bal = state.baseline;
+  let nextIncome = null, nextExpense = null;
+  let inc30 = 0, exp30 = 0;
+  let firstNeg = null;
+  let runBal = state.baseline;
+  for (const ev of allEvents) {
+    const sign = ev.entry.type === 'income' ? 1 : -1;
+    if (ev.date <= today) {
+      bal += sign * ev.entry.amount;
+    } else {
+      if (!nextIncome && ev.entry.type === 'income') nextIncome = { amount: ev.entry.amount, date: ev.date, label: ev.entry.label };
+      if (!nextExpense && ev.entry.type === 'expense') nextExpense = { amount: ev.entry.amount, date: ev.date, label: ev.entry.label };
+    }
+    if (ev.date <= fut30Str) {
+      if (ev.date > today) {
+        if (ev.entry.type === 'income') inc30 += ev.entry.amount;
+        else exp30 += ev.entry.amount;
+      }
+    }
+    if (!firstNeg) {
+      runBal += sign * ev.entry.amount;
+      if (runBal < 0) firstNeg = { date: ev.date, balance: runBal };
+    }
+  }
+
+  _renderCache = { bal, next30: { income: inc30, expense: exp30 }, nextIncome, nextExpense, firstNeg, allEvents };
+  return _renderCache;
+}
+
 function render() {
+  _renderCache = null; // invalidate cache
+  const { bal, next30, nextIncome, nextExpense, firstNeg } = getRenderData();
   const vw = (window.visualViewport ? window.visualViewport.width : window.innerWidth);
   const isInner = vw >= 600;
-  // Shared calculations
-  const bal = projectBalance(todayStr());
-  const next30 = get30DaySums();
-  const nextIncome = getNext('income');
-  const nextExpense = getNext('expense');
-  const firstNeg = findFirstNegative();
 
   // ── OUTER ──
   const now = new Date();
@@ -1227,6 +1403,13 @@ function render() {
   ibv.textContent = formatMoney(bal);
   ibv.className = 'bc-amount ' + (bal >= 0 ? 'positive' : 'negative');
   document.getElementById('inner-balance-updated').textContent = 'as of today · baseline: ' + formatMoney(state.baseline);
+
+  // Baseline date warning
+  const baselineWarn = document.getElementById('inner-baseline-warn');
+  if (baselineWarn) {
+    const baselineInFuture = state.baselineDate && state.baselineDate > todayStr();
+    baselineWarn.classList.toggle('visible', baselineInFuture);
+  }
 
   document.getElementById('inner-next-income-val').textContent = nextIncome ? formatMoney(nextIncome.amount) : '—';
   document.getElementById('inner-next-income-date').textContent = nextIncome ? formatDateShort(nextIncome.date) : '—';
@@ -1257,7 +1440,9 @@ function renderOuterTimeline() {
   const today = todayStr();
   const fut = new Date(); fut.setDate(fut.getDate() + 60);
   const futStr = fut.toISOString().split('T')[0];
-  const events = buildTimeline(today, futStr);
+  // Reuse cached allEvents filtered to range instead of rebuilding
+  const { allEvents, bal: currentBal } = getRenderData();
+  const events = allEvents.filter(ev => ev.date >= today && ev.date <= futStr);
 
   const container = document.getElementById('outer-tl-items');
   if (!events.length) {
@@ -1265,13 +1450,7 @@ function renderOuterTimeline() {
     return;
   }
 
-  let bal = state.baseline;
-  // Fast-forward baseline to today
-  const priorEvents = buildTimeline(state.baselineDate, today);
-  for (const ev of priorEvents) {
-    const sign = ev.entry.type === 'income' ? 1 : -1;
-    bal += sign * ev.entry.amount;
-  }
+  let bal = currentBal; // already fast-forwarded to today
 
   let html = '';
   for (const ev of events.slice(0, 15)) {
@@ -1309,7 +1488,7 @@ function renderInnerEntries() {
   if (incomes.length) {
     html += '<div class="entries-section-title">Income</div>';
     for (const e of incomes) {
-      html += `<div class="entry-item" onclick="editEntry('${e.id}')">
+      html += `<div class="entry-item" data-id="${e.id}" data-label="${e.label.replace(/"/g,'&quot;')}" onclick="editEntry('${e.id}')">
         <div class="entry-icon income">📈</div>
         <div class="entry-info">
           <div class="entry-name">${e.label}</div>
@@ -1325,7 +1504,7 @@ function renderInnerEntries() {
   if (expenses.length) {
     html += '<div class="entries-section-title">Expenses</div>';
     for (const e of expenses) {
-      html += `<div class="entry-item" onclick="editEntry('${e.id}')">
+      html += `<div class="entry-item" data-id="${e.id}" data-label="${e.label.replace(/"/g,'&quot;')}" onclick="editEntry('${e.id}')">
         <div class="entry-icon expense">${icons[e.category] || '📦'}</div>
         <div class="entry-info">
           <div class="entry-name">${e.label}</div>
@@ -1339,6 +1518,11 @@ function renderInnerEntries() {
     }
   }
   container.innerHTML = html;
+
+  // Attach swipe-to-delete to each entry item
+  container.querySelectorAll('.entry-item[data-id]').forEach(el => {
+    attachSwipeDelete(el, el.dataset.id, el.dataset.label);
+  });
 }
 
 function renderInnerRight() {
@@ -1349,22 +1533,36 @@ function renderInnerRight() {
   else if (currentInnerTab === 'calendar') renderCalendar(content);
 }
 
-function renderTimeline(container) {
+function renderTimeline(container, fromDateOverride, toDateOverride) {
   const today = todayStr();
+  const fromDate = fromDateOverride || today;
   const fut = new Date(); fut.setDate(fut.getDate() + 90);
-  const futStr = fut.toISOString().split('T')[0];
-  const events = buildTimeline(today, futStr);
+  const toDate = toDateOverride || fut.toISOString().split('T')[0];
 
+  // Reuse cached allEvents
+  const { allEvents, bal: currentBal } = getRenderData();
+  const events = allEvents.filter(ev => ev.date >= fromDate && ev.date <= toDate);
+
+  if (!state.entries.length) {
+    container.innerHTML = `<div class="empty-state" style="margin-top:60px;">
+      <div class="empty-icon">💸</div>
+      <div class="empty-text" style="margin-bottom:16px;">No entries yet.<br>Add your first income or expense to get started.</div>
+      <button onclick="openAddModal()" style="padding:12px 24px;border-radius:var(--r-sm);background:var(--accent);color:var(--bg);font-family:var(--font-h);font-weight:700;font-size:14px;">+ Add Entry</button>
+    </div>`;
+    return;
+  }
   if (!events.length) {
-    container.innerHTML = '<div class="empty-state" style="margin-top:60px;"><div class="empty-icon">📅</div><div class="empty-text">No upcoming transactions.<br>Add income or expenses to get started.</div></div>';
+    container.innerHTML = '<div class="empty-state" style="margin-top:60px;"><div class="empty-icon">📅</div><div class="empty-text">No transactions in this period.</div></div>';
     return;
   }
 
-  // Group by month
-  let bal = state.baseline;
-  const prior = buildTimeline(state.baselineDate, today);
-  for (const ev of prior) {
-    bal += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
+  // Group by month — start from current balance (already at today)
+  let bal = currentBal;
+  // If showing a date range before today, need to recompute
+  if (fromDate < today) {
+    bal = state.baseline;
+    const prior = buildTimeline(state.baselineDate, fromDate);
+    for (const ev of prior) bal += (ev.entry.type === 'income' ? 1 : -1) * ev.entry.amount;
   }
 
   const months = {};
@@ -1406,22 +1604,36 @@ function renderTimeline(container) {
 }
 
 function renderOutlook(container) {
-  // Monthly income vs expense summary (kept as-is)
+  // Monthly income vs expense summary
   const months = [0,1,2].map(m => {
     const start = new Date(); start.setDate(1); start.setMonth(start.getMonth() + m);
     const end = new Date(start); end.setMonth(end.getMonth() + 1); end.setDate(0);
-    const evts = buildTimeline(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
+    const fromStr = start.toISOString().split('T')[0];
+    const toStr   = end.toISOString().split('T')[0];
+    const { allEvents } = getRenderData();
+    const evts = allEvents.filter(ev => ev.date >= fromStr && ev.date <= toStr);
     let inc = 0, exp = 0;
     for (const ev of evts) { if (ev.entry.type === 'income') inc += ev.entry.amount; else exp += ev.entry.amount; }
-    return { label: start.toLocaleDateString('en-US', { month:'short', year:'2-digit' }), inc, exp, net: inc-exp };
+    return { label: start.toLocaleDateString('en-US', { month:'short', year:'2-digit' }), inc, exp, net: inc-exp, fromStr, toStr };
   });
   const monthRows = months.map(m => `
-    <div class="tl-row">
+    <div class="tl-row" style="cursor:pointer;" onclick="viewMonthTimeline('${m.fromStr}','${m.toStr}')" title="View transactions for ${m.label}">
       <div style="font-family:var(--font-h);font-size:13px;font-weight:700;color:var(--text2);min-width:44px;">${m.label}</div>
       <div style="flex:1;min-width:0;font-size:12px;color:var(--text);">In: <span style="color:var(--green);">${formatMoney(m.inc)}</span> &nbsp; Out: <span style="color:var(--red);">${formatMoney(m.exp)}</span></div>
-      <div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${m.net>=0?'var(--green)':'var(--red)'};">${formatMoney(m.net,true)}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-family:var(--font-h);font-size:16px;font-weight:700;color:${m.net>=0?'var(--green)':'var(--red)'};">${formatMoney(m.net,true)}</div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
     </div>`).join('');
-  container.innerHTML = `<div class="outlook-section"><div class="outlook-title">Monthly Summary</div>${monthRows}</div>`;
+  container.innerHTML = `<div class="outlook-section"><div class="outlook-title">Monthly Summary <span style="font-size:11px;color:var(--text2);font-weight:400;">tap to view</span></div>${monthRows}</div>`;
+}
+
+function viewMonthTimeline(fromStr, toStr) {
+  innerTab('timeline');
+  setTimeout(() => {
+    const content = document.getElementById('inner-right-content');
+    renderTimeline(content, fromStr, toStr);
+  }, 50);
 }
 
 // ── GRAPH STATE ──────────────────────────────────────────────────────────
@@ -1766,6 +1978,7 @@ function openDayModal(dateStr) {
 
 function closeDayModal() {
   document.getElementById('day-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 function openAddModalForDate(dateStr) {
@@ -1812,6 +2025,7 @@ function openOccurrenceModal(entryId, dateStr) {
 
 function closeOccurrenceModal() {
   document.getElementById('occurrence-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 async function saveOccurrence(mode) {
@@ -1826,8 +2040,8 @@ async function saveOccurrence(mode) {
     ? document.getElementById('occ-category').value
     : entry.category;
 
-  if (isNaN(newAmount) || newAmount <= 0) { alert('Enter a valid amount.'); return; }
-  if (!newLabel) { alert('Label cannot be empty.'); return; }
+  if (isNaN(newAmount) || newAmount <= 0) { showConfirmAlert('Enter a valid amount greater than 0.'); return; }
+  if (!newLabel) { showConfirmAlert('Label cannot be empty.'); return; }
 
   if (mode === 'all') {
     const idx = state.entries.findIndex(e => e.id === entry.id);
@@ -1866,6 +2080,8 @@ function innerTab(tab) {
   ['timeline','outlook','graph','calendar'].forEach(t => {
     const el = document.getElementById('tab-' + t);
     if (el) el.className = 'tab-btn' + (tab === t ? ' active' : '');
+    const bn = document.getElementById('inner-bnav-' + t);
+    if (bn) bn.className = 'inner-nav-btn' + (tab === t ? ' active' : '');
   });
   renderInnerRight();
 }
@@ -1898,6 +2114,7 @@ function doLookup(screen) {
   const dateEl = document.getElementById(dateId);
   const date = dateEl.value;
   if (!date) return;
+  dateEl.blur();
 
   const bal = projectBalance(date);
   const result = document.getElementById(resultId);
@@ -1906,6 +2123,7 @@ function doLookup(screen) {
   const valEl = document.getElementById(resultId + '-val');
   valEl.textContent = formatMoney(bal);
   valEl.className = 'pr-amount ' + (bal >= 0 ? 'positive' : 'negative');
+  setTimeout(() => result.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1928,6 +2146,7 @@ function openAddModal() {
   document.getElementById('entry-frequency').value = 'biweekly';
   document.getElementById('entry-category').value = 'Other';
   document.getElementById('delete-btn').style.display = 'none';
+  clearFormError();
   setEntryType('income');
   setRecurType('one-time');
   document.getElementById('add-modal').classList.add('open');
@@ -1948,6 +2167,7 @@ function editEntry(id) {
   document.getElementById('entry-frequency').value = entry.freq || 'biweekly';
   document.getElementById('entry-category').value = entry.category || 'Other';
   document.getElementById('delete-btn').style.display = 'block';
+  clearFormError();
   setEntryType(entry.type);
   setRecurType(entry.recur);
   document.getElementById('add-modal').classList.add('open');
@@ -1968,16 +2188,28 @@ function setRecurType(type) {
   document.getElementById('recur-onetime').classList.toggle('active', type === 'one-time');
   document.getElementById('recur-recurring').classList.toggle('active', type === 'recurring');
   document.getElementById('recur-options').style.display = type === 'recurring' ? 'flex' : 'none';
+  updateRecurPreview();
+}
+
+function showFormError(msg) {
+  const el = document.getElementById('entry-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearFormError() {
+  const el = document.getElementById('entry-error');
+  if (el) el.classList.remove('visible');
 }
 
 function saveEntry() {
+  clearFormError();
   const label = document.getElementById('entry-label').value.trim();
   const amount = parseFloat(document.getElementById('entry-amount').value);
   const date = document.getElementById('entry-date').value;
-  if (!label || isNaN(amount) || amount <= 0 || !date) {
-    alert('Please fill in label, amount, and date.');
-    return;
-  }
+  if (!label) { showFormError('Please enter a label.'); return; }
+  if (isNaN(amount) || amount <= 0) { showFormError('Please enter a valid amount greater than 0.'); return; }
+  if (!date) { showFormError('Please select a date.'); return; }
+
   const entry = {
     id: editingId || uuid(),
     type: currentEntryType,
@@ -1996,6 +2228,7 @@ function saveEntry() {
   } else {
     state.entries.push(entry);
   }
+  haptic();
   saveState();
   closeAddModal();
   render();
@@ -2003,15 +2236,26 @@ function saveEntry() {
 
 function deleteEntry() {
   if (!editingId) return;
-  if (!confirm('Delete this entry?')) return;
-  state.entries = state.entries.filter(e => e.id !== editingId);
-  saveState();
-  closeAddModal();
-  render();
+  showConfirm(
+    'Delete Entry?',
+    `"${state.entries.find(e => e.id === editingId)?.label || 'Entry'}" will be removed.`,
+    () => {
+      const deleted = state.entries.find(e => e.id === editingId);
+      state.entries = state.entries.filter(e => e.id !== editingId);
+      // Clean orphaned overrides
+      if (state.overrides) state.overrides = state.overrides.filter(o => o.entryId !== editingId);
+      haptic();
+      saveState();
+      closeAddModal();
+      render();
+      if (deleted) showUndoToast(deleted);
+    }
+  );
 }
 
 function closeAddModal() {
   document.getElementById('add-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2041,6 +2285,7 @@ function saveSettings() {
 
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 function closeModal(event) {
@@ -2107,7 +2352,14 @@ function restoreBackup(event) {
       }
       // Migration: handle future schema versions gracefully
       const restored = migrateBackup(raw);
-      if (!confirm(`Restore ${restored.entries.length} entries from backup dated ${raw._exported ? new Date(raw._exported).toLocaleDateString() : 'unknown'}?\n\nThis will REPLACE your current data.`)) return;
+      await new Promise((resolve, reject) => {
+        showConfirm(
+          'Restore Backup?',
+          `This will replace your current data with ${restored.entries.length} entries from ${raw._exported ? new Date(raw._exported).toLocaleDateString() : 'the backup'}.`,
+          resolve,
+          reject
+        );
+      });
 
       state = restored;
       await saveState();
@@ -2152,11 +2404,12 @@ function exportCSV() {
 }
 
 function clearAllData() {
-  if (!confirm('Clear ALL data? This cannot be undone.')) return;
-  state = { entries: [], baseline: 0, baselineDate: todayStr(), threshold: 200 };
-  saveState();
-  closeSettingsModal();
-  render();
+  showConfirm('Clear All Data?', 'This will permanently delete all entries and settings. This cannot be undone.', () => {
+    state = { entries: [], baseline: 0, baselineDate: todayStr(), threshold: 200 };
+    saveState();
+    closeSettingsModal();
+    render();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2275,6 +2528,152 @@ document.addEventListener('touchmove', ()=>{
   const el = document.activeElement;
   if(el && ['INPUT','SELECT','TEXTAREA'].includes(el.tagName)) el.blur();
 },{passive:true});
+
+// ══════════════════════════════════════════════════════════════════════════
+// HAPTIC FEEDBACK
+// ══════════════════════════════════════════════════════════════════════════
+function haptic(ms) {
+  try { navigator.vibrate && navigator.vibrate(ms || 10); } catch(_) {}
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONFIRM SHEET
+// ══════════════════════════════════════════════════════════════════════════
+let _confirmResolve = null;
+let _confirmReject  = null;
+
+function showConfirm(title, msg, onOk, onCancel) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent   = msg;
+  document.getElementById('confirm-sheet').classList.add('open');
+  _confirmResolve = onOk;
+  _confirmReject  = onCancel;
+}
+
+function showConfirmAlert(msg) {
+  showConfirm('Invalid Input', msg, () => {}, null);
+  document.getElementById('confirm-ok').textContent     = 'OK';
+  document.getElementById('confirm-ok').style.background = '';
+  document.getElementById('confirm-ok').style.color      = '';
+  document.getElementById('confirm-ok').style.borderColor = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('confirm-ok').addEventListener('click', () => {
+    document.getElementById('confirm-sheet').classList.remove('open');
+    document.getElementById('confirm-ok').textContent = 'Delete';
+    document.getElementById('confirm-ok').style.cssText = '';
+    if (_confirmResolve) _confirmResolve();
+    _confirmResolve = _confirmReject = null;
+  });
+  document.getElementById('confirm-cancel').addEventListener('click', () => {
+    document.getElementById('confirm-sheet').classList.remove('open');
+    if (_confirmReject) _confirmReject();
+    _confirmResolve = _confirmReject = null;
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// UNDO TOAST
+// ══════════════════════════════════════════════════════════════════════════
+let _lastDeleted   = null;
+let _undoTimeout   = null;
+
+function showUndoToast(entry) {
+  _lastDeleted = entry;
+  clearTimeout(_undoTimeout);
+  const toast = document.getElementById('undo-toast');
+  document.getElementById('undo-toast-msg').textContent = `"${entry.label}" deleted`;
+  toast.classList.remove('hiding');
+  toast.style.display = 'flex';
+  _undoTimeout = setTimeout(() => {
+    toast.classList.add('hiding');
+    setTimeout(() => { toast.style.display = 'none'; _lastDeleted = null; }, 300);
+  }, 5000);
+}
+
+function undoDelete() {
+  if (!_lastDeleted) return;
+  clearTimeout(_undoTimeout);
+  state.entries.push(_lastDeleted);
+  // Restore overrides if any were cleaned
+  haptic();
+  saveState();
+  render();
+  _lastDeleted = null;
+  const toast = document.getElementById('undo-toast');
+  toast.classList.add('hiding');
+  setTimeout(() => { toast.style.display = 'none'; }, 300);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RECURRING PREVIEW
+// ══════════════════════════════════════════════════════════════════════════
+function updateRecurPreview() {
+  const previewEl = document.getElementById('recur-preview');
+  if (!previewEl || currentRecurType !== 'recurring') { if (previewEl) previewEl.style.display = 'none'; return; }
+  const date    = document.getElementById('entry-date').value;
+  const freq    = document.getElementById('entry-frequency').value;
+  const endDate = document.getElementById('entry-enddate').value || null;
+  if (!date || !freq) { previewEl.style.display = 'none'; return; }
+
+  const fakeEntry = { date, recur: 'recurring', freq, endDate };
+  const start = new Date(); start.setDate(start.getDate() - 1);
+  const end   = new Date(); end.setDate(end.getDate() + 365);
+  const occs  = getOccurrences(fakeEntry, start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
+  const next3 = occs.slice(0, 3).map(d => formatDateShort(d));
+  if (!next3.length) { previewEl.style.display = 'none'; return; }
+  previewEl.style.display = 'block';
+  previewEl.textContent   = 'Next: ' + next3.join(' · ') + (occs.length > 3 ? ' …' : '');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SWIPE-TO-DELETE ON TIMELINE ITEMS
+// ══════════════════════════════════════════════════════════════════════════
+function attachSwipeDelete(el, entryId, label) {
+  let startX = 0, startY = 0, dx = 0, swiping = false, confirmed = false;
+  const THRESHOLD = 72;
+
+  el.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dx = 0; swiping = false; confirmed = false;
+    el.style.transition = '';
+  }, { passive: true });
+
+  el.addEventListener('touchmove', e => {
+    const curX = e.touches[0].clientX;
+    const curY = e.touches[0].clientY;
+    if (!swiping && Math.abs(curX - startX) < Math.abs(curY - startY) * 0.8) return; // vertical scroll
+    swiping = true;
+    dx = Math.min(0, curX - startX); // only allow left swipe
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity   = String(1 - Math.min(0.6, Math.abs(dx) / THRESHOLD * 0.6));
+    if (Math.abs(dx) >= THRESHOLD && !confirmed) {
+      confirmed = true;
+      haptic(20);
+    }
+  }, { passive: true });
+
+  el.addEventListener('touchend', () => {
+    if (confirmed && Math.abs(dx) >= THRESHOLD) {
+      el.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+      el.style.transform  = 'translateX(-100%)';
+      el.style.opacity    = '0';
+      setTimeout(() => {
+        const deleted = state.entries.find(e => e.id === entryId);
+        state.entries = state.entries.filter(e => e.id !== entryId);
+        if (state.overrides) state.overrides = state.overrides.filter(o => o.entryId !== entryId);
+        saveState(); render();
+        if (deleted) showUndoToast(deleted);
+      }, 200);
+    } else {
+      el.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+      el.style.transform  = '';
+      el.style.opacity    = '';
+    }
+  });
+}
 
 async function boot() {
   await loadState();
@@ -2528,6 +2927,7 @@ function openDiag() {
 
 function closeDiag() {
   document.getElementById('diag-modal').classList.remove('open');
+  document.activeElement?.blur();
 }
 
 boot();
