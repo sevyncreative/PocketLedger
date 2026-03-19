@@ -59,7 +59,7 @@ select option { background: var(--bg2); }
    OUTER SCREEN LAYOUT (Cover display — folded, ≤ 499px)
    Compact, thumb-friendly, portrait only, key info at a glance
 ══════════════════════════════════════════════════════════════════════════ */
-.outer-layout { display: flex; flex-direction: column; height: 100%; }
+.outer-layout { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 /* Outer Header */
 .outer-header {
@@ -2520,7 +2520,7 @@ async function requestPersistentStorage() {
 
 // ── SERVICE WORKER ──────────────────────────────────────────────────────
 // ── Bump only this when you release an update ──────────────────────────
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 
 if ('serviceWorker' in navigator) {
   const swPath = new URL('./sw.js?v=' + APP_VERSION, window.location.href).href;
