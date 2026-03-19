@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"Reminder: Do not bump the version number or push until the user has finished listing all their changes for this session.\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}
